@@ -8,16 +8,42 @@ A small CLI that lets you **manage** AI agent skills in one place and **load the
 
 ## Installation
 
-### From source
+### Without Cargo (install script)
+
+**Download and install** (no cargo, no clone):
 
 ```bash
+curl -sSL https://raw.githubusercontent.com/webteractive/skillset/main/install.sh | sh -s -- --download
+```
+
+Or clone and run:
+
+```bash
+# Download latest release from GitHub and install
+./install.sh --download
+
+# Or use a local binary (after downloading from a release, or after building):
+./install.sh skillset-darwin-arm64
+./install.sh                    # uses ./target/release/skillset (after cargo build --release)
+./install.sh /path/to/skillset
+```
+
+The script installs to `~/.local/bin` or `~/bin`; ensure that directory is on your PATH.
+
+### With Cargo
+
+```bash
+git clone https://github.com/webteractive/skillset.git
 cd skillset
 cargo install --path .
 ```
 
-### From binary
+Or build and install locally:
 
-Download the pre-built binary for macOS or Linux from releases and add it to your PATH.
+```bash
+cargo build --release
+./install.sh
+```
 
 ## First Run
 
@@ -186,6 +212,24 @@ cargo run -- list
 ```bash
 cargo test
 ```
+
+## Releasing (maintainers)
+
+Build locally and publish the binary to GitHub via `gh`:
+
+```bash
+# Create release and upload binary for this OS/arch (requires gh and gh auth login)
+./release.sh v0.1.0
+```
+
+Asset names are per platform (e.g. `skillset-darwin-arm64`, `skillset-linux-x86_64`) so you can add more from other machines:
+
+```bash
+# On another machine (e.g. Linux): build and upload to the same release
+./release.sh v0.1.0 --upload
+```
+
+If the release already exists (e.g. re-running on the same machine), the script uploads the asset with `--clobber`.
 
 ## Requirements
 
