@@ -4,7 +4,7 @@ A small CLI that lets you **manage** AI agent skills in one place and **load the
 
 ## Supported Platforms
 
-**macOS and Linux only.** Windows is not supported.
+**macOS and Linux.** WSL 2 is supported (it runs Linux). Native Windows (cmd/PowerShell) is not supported.
 
 ## Installation
 
@@ -283,7 +283,7 @@ If the release already exists (e.g. re-running on the same machine), the script 
 
 - **Rust 1.70+** for building from source
 - **git** for `skillset install` command (to clone packages)
-- macOS or Linux
+- macOS, Linux, or WSL 2
 
 ## License
 
