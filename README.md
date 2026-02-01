@@ -99,7 +99,7 @@ Edit `~/.config/skillset/config.json` to customize:
 
 By default, commands operate on the workspace source: `./.skillset/skills` (current working directory).
 
-Use `--user` to operate on the user-level source: `~/.skillset/skills`.
+Use **`--user`** to target the user-level dir **`~/.skillset/skills`** (source of truth and install destination); without it, commands use the workspace **`.skillset/skills`**.
 
 ```bash
 skillset list          # List workspace skills
@@ -155,7 +155,7 @@ Skill 'documan' already exists at cursor. Overwrite? [y/n/all]
 
 #### `install <vendor/package>`
 
-Install skills from a GitHub repository (e.g., `anthropics/skills`).
+Install skills from a GitHub repository into the **source of truth only** (workspace or user store). Does not copy to AI tool dirs (Cursor, Claude Code, etc.); use **`skillset sync`** or **`install --sync`** to copy to tools.
 
 ```bash
 # Install all skills from a package
@@ -171,9 +171,7 @@ skillset install anthropics/skills --sync
 skillset install anthropics/skills --user
 ```
 
-Without `--user`, installed skills are copied to configured targets **and** to the workspace source (`./.skillset/skills` in the current directory), creating `.skillset/skills` if needed. With `--user`, skills go to targets and to `~/.skillset/skills` (user-level store) instead.
-
-Use **`--sync`** to run a sync after installing: the same checklist is shown so you choose which targets to sync to; then skills are copied from the source (workspace or user) to the selected targets.
+Without `--user`, skills are copied to the workspace source (`./.skillset/skills`), creating it if needed. With `--user`, skills go to the user-level store (`~/.skillset/skills`) only. To copy into Cursor, Claude Code, etc., run **`skillset sync`** (or **`skillset install ... --sync`**) after installing.
 
 The package is cloned to `~/.cache/skillset/repos/owner-repo` (or `~/Library/Caches/skillset/repos/` on macOS).
 

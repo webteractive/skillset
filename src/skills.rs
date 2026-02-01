@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// Discover skills in a source directory.
@@ -31,6 +32,45 @@ pub fn discover_skills(source_dir: &Path) -> Result<Vec<String>> {
 
     skills.sort();
     Ok(skills)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_discover_skills_finds_subdir_with_skill_md() {
+        let tmp = std::env::temp_dir().join("skillset_test_discover");
+        let _ = fs::remove_dir_all(&tmp);
+        let skill_dir = tmp.join("my-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(skill_dir.join("SKILL.md"), "# My Skill").unwrap();
+        let skills = discover_skills(&tmp).unwrap();
+        fs::remove_dir_all(&tmp).ok();
+        assert_eq!(skills, vec!["my-skill"]);
+    }
+
+    #[test]
+    fn test_discover_skills_ignores_subdir_without_skill_md() {
+        let tmp = std::env::temp_dir().join("skillset_test_discover_no_md");
+        let _ = fs::remove_dir_all(&tmp);
+        let skill_dir = tmp.join("not-a-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        // no SKILL.md
+        let skills = discover_skills(&tmp).unwrap();
+        fs::remove_dir_all(&tmp).ok();
+        assert!(skills.is_empty());
+    }
+
+    #[test]
+    fn test_discover_skills_empty_dir_returns_empty() {
+        let tmp = std::env::temp_dir().join("skillset_test_discover_empty");
+        fs::create_dir_all(&tmp).unwrap();
+        let skills = discover_skills(&tmp).unwrap();
+        fs::remove_dir_all(&tmp).ok();
+        assert!(skills.is_empty());
+    }
 }
 
 /// Copy an entire skill directory from source to target.
@@ -78,7 +118,7 @@ pub enum OverwritePolicy {
 }
 
 /// Sync skills from source to multiple targets.
-/// Prompts user for each skill that already exists at a target.
+/// Creates each target dir if it doesn't exist, then copies skills. Prompts when a skill already exists.
 pub fn sync_skills(
     source: &Path,
     targets: &[(String, PathBuf)],
@@ -89,6 +129,11 @@ pub fn sync_skills(
     if skills.is_empty() {
         println!("No skills found in source: {}", source.display());
         return Ok(());
+    }
+
+    // Ensure each target base dir exists (e.g. ~/.claude/skills, ~/.cursor/skills)
+    for (_, target_path) in targets {
+        fs::create_dir_all(target_path).context("Failed to create target directory")?;
     }
 
     println!("Found {} skill(s) to sync:", skills.len());
@@ -111,6 +156,7 @@ pub fn sync_skills(
                             "  Skill '{}' already exists at {}. Overwrite? [y/n/all] ",
                             skill_name, label
                         );
+                        std::io::stdout().flush().context("Flush stdout")?;
                         let mut input = String::new();
                         std::io::stdin()
                             .read_line(&mut input)

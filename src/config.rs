@@ -86,7 +86,15 @@ pub fn load() -> Result<Config> {
     }
 
     let content = fs::read_to_string(&path).context("Failed to read config file")?;
-    let config: Config = serde_json::from_str(&content).context("Failed to parse config file")?;
+    let mut config: Config =
+        serde_json::from_str(&content).context("Failed to parse config file")?;
+
+    // Migrate legacy .ai/skills to .skillset/skills
+    if config.source == ".ai/skills" {
+        config.source = default_source();
+        save(&config)?;
+    }
+
     Ok(config)
 }
 
@@ -117,5 +125,50 @@ impl PathPrepend for PathBuf {
         let mut result = PathBuf::from(base);
         result.push(self);
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_supported_tools_returns_all_tools() {
+        let tools = supported_tools();
+        assert_eq!(tools.len(), 8, "supported_tools should return 8 tools");
+        let labels: Vec<&str> = tools.iter().map(|t| t.label.as_str()).collect();
+        assert!(labels.contains(&"Cursor"));
+        assert!(labels.contains(&"Claude Code"));
+        assert!(labels.contains(&"Gemini"));
+        assert!(labels.contains(&"Codex"));
+        assert!(labels.contains(&"GitHub Copilot (project)"));
+        assert!(labels.contains(&"GitHub Copilot (personal)"));
+    }
+
+    #[test]
+    fn test_supported_tools_user_vs_workspace_paths() {
+        let tools = supported_tools();
+        let user_level: Vec<_> = tools.iter().filter(|t| t.path.starts_with("~/")).collect();
+        let workspace_level: Vec<_> = tools.iter().filter(|t| !t.path.starts_with("~/")).collect();
+        assert_eq!(user_level.len(), 7, "7 tools use user-level paths (~/...)");
+        assert_eq!(
+            workspace_level.len(),
+            1,
+            "1 tool uses workspace-relative path"
+        );
+        assert_eq!(workspace_level[0].path, ".github/skills");
+    }
+
+    #[test]
+    fn test_expand_home() {
+        std::env::set_var("HOME", "/home/user");
+        assert_eq!(
+            expand_home("~/.skillset/skills"),
+            PathBuf::from("/home/user/.skillset/skills")
+        );
+        assert_eq!(
+            expand_home("/absolute/path"),
+            PathBuf::from("/absolute/path")
+        );
     }
 }

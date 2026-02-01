@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2025-02-01
+
+### Changed
+
+- **Sync scope:** Without `--user`, sync now writes to workspace tool dirs (e.g. `.cursor/skills`, `.claude/skills` in the project). With `--user`, sync writes to user-level dirs (`~/.cursor/skills`, etc.). Same tool list in both cases; path is chosen by scope so skills are never written to the wrong level.
+
+### Added
+
+- Unit tests for `add` module: valid name creates files, empty/invalid name errors, existing without force errors, existing with force overwrites.
+
+### Fixed
+
+- Install/sync without `--user` was writing to user-level targets (~/.cursor/skills etc.). Now correctly writes only to workspace paths when scope is workspace.
+
 ## [0.1.1] - 2025-02-01
 
 ### Changed
@@ -34,5 +48,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - macOS and Linux only. Windows is not supported.
 
+[0.1.2]: https://github.com/webteractive/skillset/releases/tag/v0.1.2
 [0.1.1]: https://github.com/webteractive/skillset/releases/tag/v0.1.1
 [0.1.0]: https://github.com/webteractive/skillset/releases/tag/v0.1.0

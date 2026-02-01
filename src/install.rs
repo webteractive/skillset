@@ -1,5 +1,6 @@
-use crate::skills::{copy_skill, discover_skills, OverwritePolicy};
+use crate::skills::{copy_skill, discover_skills};
 use anyhow::{Context, Result};
+use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
@@ -78,15 +79,17 @@ pub fn find_skills_dir(repo_root: &Path) -> Result<PathBuf> {
     anyhow::bail!("No skills directory found in repository (checked .cursor/skills and skills)");
 }
 
-/// Install skills from a package to targets, and optionally to workspace or user store.
+/// Install skills from a package into the source of truth only (workspace or user store).
+/// Does not copy to AI tool dirs (Cursor, etc.); use `skillset sync` or `install --sync` for that.
 /// - source_dir: if Some, copy to this path (e.g. cwd/.skillset/skills) as workspace source of truth
-/// - user_store_dir: if Some, also copy to that path (user-level store, e.g. ~/.skillset/skills)
+/// - user_store_dir: if Some, copy to that path (user-level store, e.g. ~/.skillset/skills)
+/// - overwrite_all: if true, skip prompts and always overwrite when skill already exists
 pub fn install_package(
     spec: &str,
     skill_filter: Option<&str>,
-    targets: &[(String, PathBuf)],
     source_dir: Option<&Path>,
     user_store_dir: Option<&Path>,
+    overwrite_all: bool,
 ) -> Result<()> {
     // Resolve package
     let repo_dir = resolve_package(spec)?;
@@ -120,55 +123,7 @@ pub fn install_package(
         println!("  - {}", skill);
     }
 
-    // Install to targets
-    let mut overwrite_policy = OverwritePolicy::PerSkill;
-    for skill_name in &skills_to_install {
-        let skill_source = skills_dir.join(skill_name);
-
-        for (label, target_path) in targets {
-            let skill_target = target_path.join(skill_name);
-
-            if skill_target.exists() {
-                match overwrite_policy {
-                    OverwritePolicy::All => {
-                        copy_skill(&skill_source, &skill_target)?;
-                        println!("  Overwrote {} at {}", skill_name, label);
-                    }
-                    OverwritePolicy::PerSkill => {
-                        print!(
-                            "  Skill '{}' already exists at {}. Overwrite? [y/n/all] ",
-                            skill_name, label
-                        );
-                        let mut input = String::new();
-                        std::io::stdin()
-                            .read_line(&mut input)
-                            .context("Failed to read user input")?;
-                        let input = input.trim().to_lowercase();
-
-                        match input.as_str() {
-                            "y" | "yes" => {
-                                copy_skill(&skill_source, &skill_target)?;
-                                println!("    Copied to {}", label);
-                            }
-                            "a" | "all" => {
-                                overwrite_policy = OverwritePolicy::All;
-                                copy_skill(&skill_source, &skill_target)?;
-                                println!("    Copied to {} (will overwrite rest)", label);
-                            }
-                            _ => {
-                                println!("    Skipped {}", label);
-                            }
-                        }
-                    }
-                }
-            } else {
-                copy_skill(&skill_source, &skill_target)?;
-                println!("  Copied {} to {}", skill_name, label);
-            }
-        }
-    }
-
-    // Install to workspace source (e.g. cwd/.skillset/skills) if provided
+    // Install to workspace source first (e.g. cwd/.skillset/skills when no --user), so .skillset is populated before targets
     if let Some(workspace_source) = source_dir {
         std::fs::create_dir_all(workspace_source)
             .context("Failed to create workspace source directory")?;
@@ -178,22 +133,28 @@ pub fn install_package(
             let skill_target = workspace_source.join(skill_name);
 
             if skill_target.exists() {
-                print!(
-                    "  Skill '{}' already exists in {}. Overwrite? [y/n] ",
-                    skill_name,
-                    workspace_source.display()
-                );
-                let mut input = String::new();
-                std::io::stdin()
-                    .read_line(&mut input)
-                    .context("Failed to read user input")?;
-                let input = input.trim().to_lowercase();
-
-                if matches!(input.as_str(), "y" | "yes") {
+                if overwrite_all {
                     copy_skill(&skill_source, &skill_target)?;
-                    println!("    Copied to workspace source");
+                    println!("  Overwrote {} in workspace source", skill_name);
                 } else {
-                    println!("    Skipped workspace source");
+                    print!(
+                        "  Skill '{}' already exists in {}. Overwrite? [y/n] ",
+                        skill_name,
+                        workspace_source.display()
+                    );
+                    std::io::stdout().flush().context("Flush stdout")?;
+                    let mut input = String::new();
+                    std::io::stdin()
+                        .read_line(&mut input)
+                        .context("Failed to read user input")?;
+                    let input = input.trim().to_lowercase();
+
+                    if matches!(input.as_str(), "y" | "yes") {
+                        copy_skill(&skill_source, &skill_target)?;
+                        println!("    Copied to workspace source");
+                    } else {
+                        println!("    Skipped workspace source");
+                    }
                 }
             } else {
                 copy_skill(&skill_source, &skill_target)?;
@@ -212,21 +173,27 @@ pub fn install_package(
             let skill_target = user_skills_dir.join(skill_name);
 
             if skill_target.exists() {
-                print!(
-                    "  Skill '{}' already exists in user store. Overwrite? [y/n] ",
-                    skill_name
-                );
-                let mut input = String::new();
-                std::io::stdin()
-                    .read_line(&mut input)
-                    .context("Failed to read user input")?;
-                let input = input.trim().to_lowercase();
-
-                if matches!(input.as_str(), "y" | "yes") {
+                if overwrite_all {
                     copy_skill(&skill_source, &skill_target)?;
-                    println!("    Copied to user store");
+                    println!("  Overwrote {} in user store", skill_name);
                 } else {
-                    println!("    Skipped user store");
+                    print!(
+                        "  Skill '{}' already exists in user store. Overwrite? [y/n] ",
+                        skill_name
+                    );
+                    std::io::stdout().flush().context("Flush stdout")?;
+                    let mut input = String::new();
+                    std::io::stdin()
+                        .read_line(&mut input)
+                        .context("Failed to read user input")?;
+                    let input = input.trim().to_lowercase();
+
+                    if matches!(input.as_str(), "y" | "yes") {
+                        copy_skill(&skill_source, &skill_target)?;
+                        println!("    Copied to user store");
+                    } else {
+                        println!("    Skipped user store");
+                    }
                 }
             } else {
                 copy_skill(&skill_source, &skill_target)?;

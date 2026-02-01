@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 
 /// Remove a skill from all configured targets.
@@ -39,6 +40,7 @@ pub fn remove_skill(
             name,
             target_labels.join(", ")
         );
+        std::io::stdout().flush().context("Flush stdout")?;
         let mut input = String::new();
         std::io::stdin()
             .read_line(&mut input)

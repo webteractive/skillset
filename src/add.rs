@@ -122,3 +122,105 @@ fn generate_readme_template(name: &str) -> String {
         name.replace("-", " ").replace("_", " ").to_lowercase()
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    fn temp_source_dir() -> std::path::PathBuf {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let n = NEXT.fetch_add(1, Ordering::SeqCst);
+        std::env::temp_dir().join(format!("skillset_test_add_{}", n))
+    }
+
+    #[test]
+    fn test_add_skill_valid_name_creates_files() {
+        let tmp = temp_source_dir();
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        let result = add_skill("my-skill", &tmp, false, false);
+        assert!(result.is_ok());
+
+        let skill_dir = tmp.join("my-skill");
+        assert!(skill_dir.is_dir());
+        let skill_md = skill_dir.join("SKILL.md");
+        let readme_md = skill_dir.join("README.md");
+        assert!(skill_md.exists());
+        assert!(readme_md.exists());
+
+        let skill_content = fs::read_to_string(&skill_md).unwrap();
+        assert!(skill_content.contains("name: my-skill"));
+        assert!(skill_content.contains("# MY SKILL"));
+
+        let readme_content = fs::read_to_string(&readme_md).unwrap();
+        assert!(readme_content.contains("# my-skill Skill"));
+        assert!(readme_content.contains("A skill for my skill"));
+
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn test_add_skill_empty_name_errors() {
+        let tmp = temp_source_dir();
+        fs::create_dir_all(&tmp).unwrap();
+        let result = add_skill("", &tmp, false, false);
+        fs::remove_dir_all(&tmp).ok();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+    }
+
+    #[test]
+    fn test_add_skill_invalid_chars_errors() {
+        let tmp = temp_source_dir();
+        fs::create_dir_all(&tmp).unwrap();
+        for bad in ["foo bar", "bad.name", "slash/in"] {
+            let result = add_skill(bad, &tmp, false, false);
+            assert!(result.is_err(), "expected error for name {:?}", bad);
+            assert!(
+                result.unwrap_err().to_string().contains("alphanumeric"),
+                "expected alphanumeric message for {:?}",
+                bad
+            );
+        }
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn test_add_skill_existing_without_force_errors() {
+        let tmp = temp_source_dir();
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let existing = tmp.join("existing-skill");
+        fs::create_dir_all(&existing).unwrap();
+        fs::write(existing.join("SKILL.md"), "old").unwrap();
+
+        let result = add_skill("existing-skill", &tmp, false, false);
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("already exists"));
+        assert!(err.to_string().contains("--force"));
+
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn test_add_skill_existing_with_force_overwrites() {
+        let tmp = temp_source_dir();
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let existing = tmp.join("overwrite-me");
+        fs::create_dir_all(&existing).unwrap();
+        fs::write(existing.join("SKILL.md"), "old content").unwrap();
+
+        let result = add_skill("overwrite-me", &tmp, false, true);
+        assert!(result.is_ok());
+
+        let skill_content = fs::read_to_string(tmp.join("overwrite-me").join("SKILL.md")).unwrap();
+        assert!(skill_content.contains("name: overwrite-me"));
+        assert!(!skill_content.contains("old content"));
+
+        fs::remove_dir_all(&tmp).ok();
+    }
+}
