@@ -1,0 +1,30 @@
+# Rust / Cargo
+/target/
+
+# Backup files
+**/*.rs.bk
+*.bak
+*~
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.settings/
+*.sublime-*
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+
+# Debug / build artifacts
+*.pdb
+*.dSYM/
+
+# Local config (optional; uncomment if you want to ignore local overrides)
+# config.json

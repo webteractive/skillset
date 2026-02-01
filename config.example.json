@@ -1,0 +1,7 @@
+{
+  "source": ".ai/skills",
+  "targets": [
+    { "label": "Cursor", "path": "~/.cursor/skills" },
+    { "label": "Claude", "path": "~/.claude/skills" }
+  ]
+}
