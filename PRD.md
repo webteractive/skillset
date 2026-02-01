@@ -57,9 +57,9 @@ A small CLI that lets you **manage** AI agent skills in one place and **load the
   - **`--user`:** If set, create the skill under **`~/.skillset/skills/<name>/`** (user-level store). Without `--user`, create under **`./.skillset/skills/<name>/`** (workspace). Fails if the skill already exists unless overwrite is confirmed or a flag is used.
 - **AGENTS.md AI instruction:** Skillset provides a **standard snippet** that can be added or appended to **AGENTS.md** so that AI coding agents (Cursor, Claude, Codex, etc.) know: (1) **Where to store generated skills:** under **`.skillset/skills/<name>/`** (workspace) or **`~/.skillset/skills/<name>/`** (user-level). (2) **How to use the skillset CLI:** run **`skillset add <name>`** to scaffold a new skill in that location, then edit `SKILL.md`; after creating or updating skills, run **`skillset sync`** (or `skillset sync --user`) to load them to the configured tools. The snippet is intended to be copied into project or user AGENTS.md so the agent consistently stores and syncs skills. Optionally, a command (e.g. **`skillset doc agents-md`**) outputs this snippet for the user to append to AGENTS.md.
 - **Remove:** Command to remove a skill by name from configured targets (and optionally from user-level store).
-  - **Invocation:** `skillset remove <name>` (e.g. `skillset remove documan`). Removes the skill directory from **all configured targets** (e.g. deletes `~/.cursor/skills/documan`, `~/.claude/skills/documan`). Does not delete from the source (workspace or user store) unless `--user` is used.
+  - **Invocation:** `skillset remove <name>` (e.g. `skillset remove my-skill`). Removes the skill directory from **all configured targets** (e.g. deletes `~/.cursor/skills/my-skill`, `~/.claude/skills/my-skill`). Does not delete from the source (workspace or user store) unless `--user` is used.
   - **`--user`:** If set, also remove the skill from **`~/.skillset/skills/<name>`** (user-level store). Without `--user`, only targets are affected; the skill remains in cwd’s `.skillset/skills` or `~/.skillset/skills` and can be re-synced later.
-  - Prompt for confirmation before deleting (e.g. “Remove documan from cursor, claude? [y/n]”) or support `--yes` to skip prompt.
+  - Prompt for confirmation before deleting (e.g. “Remove my-skill from cursor, claude? [y/n]”) or support `--yes` to skip prompt.
 - **CLI only:** Subcommands + prompts where needed (e.g. “Overwrite X? [y/n/all]”, “Remove X? [y/n]”). No full-screen TUI required for MVP.
 - **Distribution:** Single binary (`skillset`) on macOS and Linux. Windows is not supported.
 
@@ -90,7 +90,7 @@ A small CLI that lets you **manage** AI agent skills in one place and **load the
 ### 6.2 See what you have and where it’s loaded
 
 1. User runs `skillset list` (or `skillset status`). Without `--user`, source = **cwd** (e.g. `./.skillset/skills`). With `--user`, source = **`~/.skillset/skills`**.
-2. App reads source, lists each skill (dir with `SKILL.md`). For each target, shows whether that skill is present or missing (e.g. table or lines like `documan  cursor ✓  claude —`).
+2. App reads source, lists each skill (dir with `SKILL.md`). For each target, shows whether that skill is present or missing (e.g. table or lines like `my-skill  cursor ✓  claude —`).
 
 ### 6.3 Load skills onto your tools
 
@@ -115,8 +115,8 @@ A small CLI that lets you **manage** AI agent skills in one place and **load the
 
 ### 6.6 Remove a skill
 
-1. **Remove from targets only:** `skillset remove documan` — delete the `documan` skill directory from every configured target (e.g. `~/.cursor/skills/documan`, `~/.claude/skills/documan`). Source (cwd or user store) is unchanged; skill can be re-synced later.
-2. **Remove from targets and user-level store:** `skillset remove documan --user` — remove from all targets **and** from **`~/.skillset/skills/documan`**. Prompt for confirmation (or use `--yes` to skip).
+1. **Remove from targets only:** `skillset remove my-skill` — delete the `my-skill` skill directory from every configured target (e.g. `~/.cursor/skills/my-skill`, `~/.claude/skills/my-skill`). Source (cwd or user store) is unchanged; skill can be re-synced later.
+2. **Remove from targets and user-level store:** `skillset remove my-skill --user` — remove from all targets **and** from **`~/.skillset/skills/my-skill`**. Prompt for confirmation (or use `--yes` to skip).
 
 ### 6.7 Change where source/targets are
 

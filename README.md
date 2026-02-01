@@ -124,8 +124,8 @@ Source: /path/to/.skillset/skills
 Config: /Users/username/.config/skillset/config.json
 
 Skills:
-  documan  cursor ✓  claude —
-  install-skills  cursor ✓  claude —
+  my-skill  cursor ✓  claude —
+  use-skillset  cursor ✓  claude —
 ```
 
 #### `sync`
@@ -150,18 +150,22 @@ Select targets (e.g. 1,3,5 or 'all') [all]:
 For each skill that already exists at a selected target, you'll be prompted:
 
 ```
-Skill 'documan' already exists at cursor. Overwrite? [y/n/all]
+Skill 'my-skill' already exists at cursor. Overwrite? [y/n/all]
 ```
 
 #### `install <vendor/package>`
 
 Install skills from a GitHub repository into the **source of truth only** (workspace or user store). Does not copy to AI tool dirs (Cursor, Claude Code, etc.); use **`skillset sync`** or **`install --sync`** to copy to tools.
 
+Packages must have a skills directory at **`.cursor/skills`** or **`skills`** at repo root; this repo provides a **use-skillset** skill (how to use the CLI) at `skills/use-skillset/`.
+
 ```bash
-# Install all skills from a package
+# Install all skills from a package (including this repo's use-skillset skill)
+skillset install webteractive/skillset
 skillset install anthropics/skills
 
 # Install a specific skill
+skillset install webteractive/skillset --skill=use-skillset
 skillset install anthropics/skills --skill=frontend-design
 
 # Install and sync to all configured targets (Cursor, Claude Code, Windsurf, Codex, OpenCode, Gemini, GitHub Copilot)
@@ -198,13 +202,13 @@ Remove a skill from all configured targets (and optionally from user store).
 
 ```bash
 # Remove from targets only
-skillset remove documan
+skillset remove my-skill
 
 # Remove from targets and user store
-skillset remove documan --user
+skillset remove my-skill --user
 
 # Skip confirmation
-skillset remove documan --yes
+skillset remove my-skill --yes
 ```
 
 Prompts before deleting unless `--yes` is used.
