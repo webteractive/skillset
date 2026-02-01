@@ -1,6 +1,6 @@
 # Skillset
 
-A small CLI that lets you **manage** AI agent skills in one place and **load them** on the tools you use (Cursor, Claude, Codex, Gemini, OpenCode, etc.). The **source of truth** for skills is **`.ai/`** (e.g. `.ai/skills` in a project or `~/.ai/skills` globally).
+A small CLI that lets you **manage** AI agent skills in one place and **load them** on the tools you use (Cursor, Claude, Codex, Gemini, OpenCode, etc.). The **source of truth** for skills is **`.skillset/`** (e.g. `.skillset/skills` in a project or `~/.skillset/skills` globally).
 
 ## Supported Platforms
 
@@ -30,6 +30,23 @@ Or clone and run:
 
 The script installs to `~/.local/bin` or `~/bin`; ensure that directory is on your PATH.
 
+### Updating
+
+- **If you installed via the install script** (download or a release binary): run the same command again. It overwrites the existing binary.
+  ```bash
+  curl -sSL https://raw.githubusercontent.com/webteractive/skillset/main/install.sh | sh -s -- --download
+  ```
+  Or from a clone: `./install.sh --download`.
+- **If you installed via Cargo** (from the repo): pull the latest code and reinstall:
+  ```bash
+  cd skillset
+  git pull
+  cargo install --path .
+  ```
+  Cargo overwrites the previous binary in `~/.cargo/bin/skillset`.
+
+Your config (`~/.config/skillset/config.json`) and skills (e.g. `~/.skillset/skills`) are left unchanged when you update the binary.
+
 ### With Cargo
 
 ```bash
@@ -47,7 +64,7 @@ cargo build --release
 
 ## First Run
 
-On first run, Skillset creates a default config at `~/.config/skillset/config.json` with Cursor as the default target. The config path is printed on first run.
+On first run, Skillset creates a default config at `~/.config/skillset/config.json` with all supported tools as default targets. The config path is printed on first run.
 
 ```bash
 skillset list
@@ -59,24 +76,30 @@ Edit `~/.config/skillset/config.json` to customize:
 
 ```json
 {
-  "source": ".ai/skills",
+  "source": ".skillset/skills",
   "targets": [
     { "label": "Cursor", "path": "~/.cursor/skills" },
-    { "label": "Claude", "path": "~/.claude/skills" }
+    { "label": "Claude Code", "path": "~/.claude/skills" },
+    { "label": "Windsurf", "path": "~/.windsurf/skills" },
+    { "label": "Codex", "path": "~/.codex/skills" },
+    { "label": "OpenCode", "path": "~/.opencode/skills" },
+    { "label": "Gemini", "path": "~/.gemini/skills" },
+    { "label": "GitHub Copilot (project)", "path": ".github/skills" },
+    { "label": "GitHub Copilot (personal)", "path": "~/.copilot/skills" }
   ]
 }
 ```
 
-- `source`: Path template for skills directory (resolved relative to cwd or `~/.ai/skills` with `--user`)
-- `targets`: List of tool directories where skills should be synced
+- `source`: Path template for skills directory (resolved relative to cwd or `~/.skillset/skills` with `--user`)
+- `targets`: List of tool directories where skills should be synced. Supported tools (skills-capable CLIs/editors): **Cursor**, **Claude Code**, **Windsurf**, **Codex**, **OpenCode**, **Gemini**, **GitHub Copilot** (project: `.github/skills`, personal: `~/.copilot/skills`). New configs default to all; remove or add paths as needed.
 
 ## Usage
 
 ### Scope
 
-By default, commands operate on the workspace source: `./.ai/skills` (current working directory).
+By default, commands operate on the workspace source: `./.skillset/skills` (current working directory).
 
-Use `--user` to operate on the user-level source: `~/.ai/skills`.
+Use `--user` to operate on the user-level source: `~/.skillset/skills`.
 
 ```bash
 skillset list          # List workspace skills
@@ -97,7 +120,7 @@ skillset list --user
 Example output:
 
 ```
-Source: /path/to/.ai/skills
+Source: /path/to/.skillset/skills
 Config: /Users/username/.config/skillset/config.json
 
 Skills:
@@ -107,14 +130,24 @@ Skills:
 
 #### `sync`
 
-Copy skills from source to all configured targets. Prompts for existing skills.
+Copy skills from source to configured targets. Shows a **checklist** of supported tools (from your config); choose which targets to sync to (e.g. `1,3,5` or `all`). Then prompts for any skill that already exists at a target.
 
 ```bash
 skillset sync
 skillset sync --user
 ```
 
-For each skill that already exists at a target, you'll be prompted:
+Example checklist (press Enter or type `all` to sync to every target):
+
+```
+Sync skills to (supported tools):
+  [1] Cursor  (~/.cursor/skills)
+  [2] Claude Code  (~/.claude/skills)
+  ...
+Select targets (e.g. 1,3,5 or 'all') [all]:
+```
+
+For each skill that already exists at a selected target, you'll be prompted:
 
 ```
 Skill 'documan' already exists at cursor. Overwrite? [y/n/all]
@@ -131,11 +164,18 @@ skillset install anthropics/skills
 # Install a specific skill
 skillset install anthropics/skills --skill=frontend-design
 
+# Install and sync to all configured targets (Cursor, Claude Code, Windsurf, Codex, OpenCode, Gemini, GitHub Copilot)
+skillset install anthropics/skills --sync
+
 # Install and add to user-level store
 skillset install anthropics/skills --user
 ```
 
-The package is cloned to `~/.cache/skillset/repos/owner-repo`.
+Without `--user`, installed skills are copied to configured targets **and** to the workspace source (`./.skillset/skills` in the current directory), creating `.skillset/skills` if needed. With `--user`, skills go to targets and to `~/.skillset/skills` (user-level store) instead.
+
+Use **`--sync`** to run a sync after installing: the same checklist is shown so you choose which targets to sync to; then skills are copied from the source (workspace or user) to the selected targets.
+
+The package is cloned to `~/.cache/skillset/repos/owner-repo` (or `~/Library/Caches/skillset/repos/` on macOS).
 
 #### `add <name>`
 
@@ -215,7 +255,13 @@ cargo test
 
 ## Releasing (maintainers)
 
-Build locally and publish the binary to GitHub via `gh`:
+Before cutting a release:
+
+1. Update **CHANGELOG.md** with the new version and changes.
+2. Bump **version** in `Cargo.toml` if needed.
+3. Run `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test`, and `cargo build --release`.
+
+Then build and publish the binary to GitHub via `gh`:
 
 ```bash
 # Create release and upload binary for this OS/arch (requires gh and gh auth login)

@@ -1,6 +1,7 @@
-use anyhow::{Context, Result};
-use std::path::PathBuf;
 use crate::skills::{copy_skill, discover_skills, OverwritePolicy};
+use anyhow::{Context, Result};
+use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 
 /// Resolve a vendor/package spec to a local path via git clone.
@@ -56,7 +57,7 @@ pub fn resolve_package(spec: &str) -> Result<PathBuf> {
 
 /// Find the skills directory within a repository root.
 /// Checks for .cursor/skills first, then skills.
-pub fn find_skills_dir(repo_root: &PathBuf) -> Result<PathBuf> {
+pub fn find_skills_dir(repo_root: &Path) -> Result<PathBuf> {
     let cursor_skills = repo_root.join(".cursor/skills");
     let skills = repo_root.join("skills");
 
@@ -74,17 +75,18 @@ pub fn find_skills_dir(repo_root: &PathBuf) -> Result<PathBuf> {
         return Ok(skills);
     }
 
-    anyhow::bail!(
-        "No skills directory found in repository (checked .cursor/skills and skills)"
-    );
+    anyhow::bail!("No skills directory found in repository (checked .cursor/skills and skills)");
 }
 
-/// Install skills from a package to targets and optionally to user store.
+/// Install skills from a package to targets, and optionally to workspace or user store.
+/// - source_dir: if Some, copy to this path (e.g. cwd/.skillset/skills) as workspace source of truth
+/// - user_store_dir: if Some, also copy to that path (user-level store, e.g. ~/.skillset/skills)
 pub fn install_package(
     spec: &str,
     skill_filter: Option<&str>,
     targets: &[(String, PathBuf)],
-    install_to_user: bool,
+    source_dir: Option<&Path>,
+    user_store_dir: Option<&Path>,
 ) -> Result<()> {
     // Resolve package
     let repo_dir = resolve_package(spec)?;
@@ -109,7 +111,11 @@ pub fn install_package(
         all_skills
     };
 
-    println!("Installing {} skill(s) from {}:", skills_to_install.len(), spec);
+    println!(
+        "Installing {} skill(s) from {}:",
+        skills_to_install.len(),
+        spec
+    );
     for skill in &skills_to_install {
         println!("  - {}", skill);
     }
@@ -162,15 +168,43 @@ pub fn install_package(
         }
     }
 
-    // Install to user store if requested
-    if install_to_user {
-        let user_skills_dir = if let Ok(home) = std::env::var("HOME") {
-            PathBuf::from(home).join(".ai/skills")
-        } else {
-            anyhow::bail!("HOME environment variable not set");
-        };
+    // Install to workspace source (e.g. cwd/.skillset/skills) if provided
+    if let Some(workspace_source) = source_dir {
+        std::fs::create_dir_all(workspace_source)
+            .context("Failed to create workspace source directory")?;
 
-        std::fs::create_dir_all(&user_skills_dir)
+        for skill_name in &skills_to_install {
+            let skill_source = skills_dir.join(skill_name);
+            let skill_target = workspace_source.join(skill_name);
+
+            if skill_target.exists() {
+                print!(
+                    "  Skill '{}' already exists in {}. Overwrite? [y/n] ",
+                    skill_name,
+                    workspace_source.display()
+                );
+                let mut input = String::new();
+                std::io::stdin()
+                    .read_line(&mut input)
+                    .context("Failed to read user input")?;
+                let input = input.trim().to_lowercase();
+
+                if matches!(input.as_str(), "y" | "yes") {
+                    copy_skill(&skill_source, &skill_target)?;
+                    println!("    Copied to workspace source");
+                } else {
+                    println!("    Skipped workspace source");
+                }
+            } else {
+                copy_skill(&skill_source, &skill_target)?;
+                println!("  Copied {} to {}", skill_name, workspace_source.display());
+            }
+        }
+    }
+
+    // Install to user store if path provided
+    if let Some(user_skills_dir) = user_store_dir {
+        std::fs::create_dir_all(user_skills_dir)
             .context("Failed to create user skills directory")?;
 
         for skill_name in &skills_to_install {

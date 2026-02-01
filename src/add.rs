@@ -1,32 +1,26 @@
 use anyhow::{Context, Result};
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 
 /// Scaffold a new skill with template SKILL.md.
-pub fn add_skill(name: &str, user_scope: bool, force: bool) -> Result<()> {
+/// source_dir is the resolved source path (e.g. .skillset/skills or ~/.skillset/skills).
+pub fn add_skill(name: &str, source_dir: &Path, user_scope: bool, force: bool) -> Result<()> {
     // Validate skill name
     if name.is_empty() {
         anyhow::bail!("Skill name cannot be empty");
     }
 
     // Validate name format (alphanumeric, hyphens, underscores)
-    if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+    {
         anyhow::bail!(
             "Skill name must contain only alphanumeric characters, hyphens, or underscores"
         );
     }
 
-    // Resolve destination
-    let dest_dir = if user_scope {
-        if let Ok(home) = std::env::var("HOME") {
-            PathBuf::from(home).join(".ai/skills").join(name)
-        } else {
-            anyhow::bail!("HOME environment variable not set");
-        }
-    } else {
-        let cwd = std::env::current_dir().context("Failed to get current directory")?;
-        cwd.join(".ai/skills").join(name)
-    };
+    let dest_dir = source_dir.join(name);
 
     // Check if skill already exists
     if dest_dir.exists() {
@@ -55,7 +49,10 @@ pub fn add_skill(name: &str, user_scope: bool, force: bool) -> Result<()> {
 
     println!("Skill '{}' created at: {}", name, dest_dir.display());
     println!("Edit {} to add your skill content.", skill_md.display());
-    println!("Run 'skillset sync{}' to load to configured tools.", if user_scope { " --user" } else { "" });
+    println!(
+        "Run 'skillset sync{}' to load to configured tools.",
+        if user_scope { " --user" } else { "" }
+    );
 
     Ok(())
 }
@@ -113,7 +110,8 @@ Apply this skill when:
 - **Case 2:** Description and solution
 - **Case 3:** Description and solution
 "#,
-        name, name.replace("-", " ").replace("_", " ").to_uppercase()
+        name,
+        name.replace("-", " ").replace("_", " ").to_uppercase()
     )
 }
 

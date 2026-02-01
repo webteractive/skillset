@@ -3,8 +3,13 @@ use std::fs;
 use std::path::PathBuf;
 
 /// Remove a skill from all configured targets.
-/// If user_scope is true, also remove from ~/.ai/skills.
-pub fn remove_skill(name: &str, targets: &[(String, PathBuf)], user_scope: bool, yes: bool) -> Result<()> {
+/// If user_source_dir is Some, also remove from that path (user-level store, e.g. ~/.skillset/skills).
+pub fn remove_skill(
+    name: &str,
+    targets: &[(String, PathBuf)],
+    user_source_dir: Option<&std::path::Path>,
+    yes: bool,
+) -> Result<()> {
     if name.is_empty() {
         anyhow::bail!("Skill name cannot be empty");
     }
@@ -25,7 +30,10 @@ pub fn remove_skill(name: &str, targets: &[(String, PathBuf)], user_scope: bool,
 
     // Prompt for confirmation unless --yes is set
     if !yes {
-        let target_labels: Vec<&str> = targets_with_skill.iter().map(|(label, _)| label.as_str()).collect();
+        let target_labels: Vec<&str> = targets_with_skill
+            .iter()
+            .map(|(label, _)| label.as_str())
+            .collect();
         print!(
             "Remove '{}' from {}? [y/n] ",
             name,
@@ -45,23 +53,18 @@ pub fn remove_skill(name: &str, targets: &[(String, PathBuf)], user_scope: bool,
 
     // Remove from targets
     for (label, skill_path) in &targets_with_skill {
-        fs::remove_dir_all(skill_path).with_context(|| {
-            format!("Failed to remove skill '{}' from {}", name, label)
-        })?;
+        fs::remove_dir_all(skill_path)
+            .with_context(|| format!("Failed to remove skill '{}' from {}", name, label))?;
         println!("  Removed {} from {}", name, label);
     }
 
-    // Remove from user store if --user is set
-    if user_scope {
-        if let Ok(home) = std::env::var("HOME") {
-            let user_skill_path = PathBuf::from(home).join(".ai/skills").join(name);
-            if user_skill_path.exists() {
-                fs::remove_dir_all(&user_skill_path)
-                    .context("Failed to remove skill from user store")?;
-                println!("  Removed {} from user store", name);
-            }
-        } else {
-            anyhow::bail!("HOME environment variable not set");
+    // Remove from user store if path provided
+    if let Some(user_source) = user_source_dir {
+        let user_skill_path = user_source.join(name);
+        if user_skill_path.exists() {
+            fs::remove_dir_all(&user_skill_path)
+                .context("Failed to remove skill from user store")?;
+            println!("  Removed {} from user store", name);
         }
     }
 

@@ -18,14 +18,49 @@ pub struct Target {
 }
 
 fn default_source() -> String {
-    ".ai/skills".to_string()
+    ".skillset/skills".to_string()
+}
+
+/// Tools/CLIs that support agent skills (SKILL.md). Used for default config and reference.
+pub fn supported_tools() -> Vec<Target> {
+    vec![
+        Target {
+            label: "Cursor".to_string(),
+            path: "~/.cursor/skills".to_string(),
+        },
+        Target {
+            label: "Claude Code".to_string(),
+            path: "~/.claude/skills".to_string(),
+        },
+        Target {
+            label: "Windsurf".to_string(),
+            path: "~/.windsurf/skills".to_string(),
+        },
+        Target {
+            label: "Codex".to_string(),
+            path: "~/.codex/skills".to_string(),
+        },
+        Target {
+            label: "OpenCode".to_string(),
+            path: "~/.opencode/skills".to_string(),
+        },
+        Target {
+            label: "Gemini".to_string(),
+            path: "~/.gemini/skills".to_string(),
+        },
+        Target {
+            label: "GitHub Copilot (project)".to_string(),
+            path: ".github/skills".to_string(),
+        },
+        Target {
+            label: "GitHub Copilot (personal)".to_string(),
+            path: "~/.copilot/skills".to_string(),
+        },
+    ]
 }
 
 fn default_targets() -> Vec<Target> {
-    vec![Target {
-        label: "Cursor".to_string(),
-        path: "~/.cursor/skills".to_string(),
-    }]
+    supported_tools()
 }
 
 pub fn config_dir() -> Result<PathBuf> {
@@ -65,9 +100,9 @@ pub fn save(config: &Config) -> Result<()> {
 }
 
 pub fn expand_home(path: &str) -> PathBuf {
-    if path.starts_with("~/") {
+    if let Some(stripped) = path.strip_prefix("~/") {
         if let Ok(home) = std::env::var("HOME") {
-            return PathBuf::from(&path[2..]).prepending(&home);
+            return PathBuf::from(stripped).prepending(&home);
         }
     }
     PathBuf::from(path)

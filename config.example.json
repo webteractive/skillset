@@ -1,7 +1,13 @@
 {
-  "source": ".ai/skills",
+  "source": ".skillset/skills",
   "targets": [
     { "label": "Cursor", "path": "~/.cursor/skills" },
-    { "label": "Claude", "path": "~/.claude/skills" }
+    { "label": "Claude Code", "path": "~/.claude/skills" },
+    { "label": "Windsurf", "path": "~/.windsurf/skills" },
+    { "label": "Codex", "path": "~/.codex/skills" },
+    { "label": "OpenCode", "path": "~/.opencode/skills" },
+    { "label": "Gemini", "path": "~/.gemini/skills" },
+    { "label": "GitHub Copilot (project)", "path": ".github/skills" },
+    { "label": "GitHub Copilot (personal)", "path": "~/.copilot/skills" }
   ]
 }

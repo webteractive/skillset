@@ -1,5 +1,6 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use std::io::IsTerminal;
 use std::path::PathBuf;
 
 mod add;
@@ -13,13 +14,13 @@ mod skills;
 use config::{config_path, load};
 use doc::agents_md_snippet;
 use path::resolve_source;
-use skills::{discover_skills, OverwritePolicy, sync_skills};
+use skills::{discover_skills, sync_skills, OverwritePolicy};
 
 #[derive(Parser)]
 #[command(name = "skillset")]
 #[command(about = "Manage and sync AI agent skills across multiple tools", long_about = None)]
 struct Cli {
-    /// Use user-level scope (~/.ai/skills instead of cwd/.ai/skills)
+    /// Use user-level scope (~/.skillset/skills instead of cwd/.skillset/skills)
     #[arg(long, global = true)]
     user: bool,
 
@@ -40,6 +41,9 @@ enum Commands {
         /// Install only the specified skill
         #[arg(long)]
         skill: Option<String>,
+        /// After installing, sync skills from source to configured targets
+        #[arg(long)]
+        sync: bool,
     },
     /// Add/scaffold a new skill
     Add {
@@ -71,7 +75,11 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::List => list_skills(cli.user)?,
         Commands::Sync => sync_skills_cli(cli.user)?,
-        Commands::Install { package, skill } => install_package(package, skill.as_deref(), cli.user)?,
+        Commands::Install {
+            package,
+            skill,
+            sync,
+        } => install_package(package, skill.as_deref(), cli.user, sync)?,
         Commands::Add { name, force } => add_skill(name, cli.user, force)?,
         Commands::Remove { name, yes } => remove_skill(name, cli.user, yes)?,
         Commands::Doc { agents_md } => doc_output(agents_md)?,
@@ -119,6 +127,54 @@ fn list_skills(user_scope: bool) -> Result<()> {
     Ok(())
 }
 
+/// Show a checklist of configured targets and return the subset the user selects.
+/// When stdin is not a TTY, returns all targets (non-interactive).
+fn select_sync_targets(targets: &[(String, PathBuf)]) -> Result<Vec<(String, PathBuf)>> {
+    if targets.is_empty() {
+        return Ok(vec![]);
+    }
+    if !std::io::stdin().is_terminal() {
+        return Ok(targets.to_vec());
+    }
+
+    println!("\nSync skills to (supported tools):");
+    for (i, (label, path)) in targets.iter().enumerate() {
+        println!("  [{}] {}  ({})", i + 1, label, path.display());
+    }
+    print!("\nSelect targets (e.g. 1,3,5 or 'all') [all]: ");
+    std::io::Write::flush(&mut std::io::stdout()).context("Flush stdout")?;
+    let mut input = String::new();
+    std::io::stdin()
+        .read_line(&mut input)
+        .context("Read selection")?;
+    let input = input.trim();
+
+    if input.is_empty() || input.eq_ignore_ascii_case("all") {
+        return Ok(targets.to_vec());
+    }
+
+    let selected: Vec<(String, PathBuf)> = input
+        .split(',')
+        .filter_map(|s| {
+            let s = s.trim();
+            s.parse::<usize>().ok().and_then(|n| {
+                if n >= 1 && n <= targets.len() {
+                    Some(targets[n - 1].clone())
+                } else {
+                    None
+                }
+            })
+        })
+        .collect();
+    if selected.is_empty() {
+        anyhow::bail!(
+            "No valid targets selected. Use numbers 1-{} or 'all'.",
+            targets.len()
+        );
+    }
+    Ok(selected)
+}
+
 fn sync_skills_cli(user_scope: bool) -> Result<()> {
     let config = load()?;
     let cwd = std::env::current_dir()?;
@@ -135,14 +191,26 @@ fn sync_skills_cli(user_scope: bool) -> Result<()> {
         .map(|t| (t.label.clone(), config::expand_home(&t.path)))
         .collect();
 
+    let selected = select_sync_targets(&targets)?;
+    if selected.is_empty() {
+        println!("No targets selected. Nothing to sync.");
+        return Ok(());
+    }
+
     let mut overwrite_policy = OverwritePolicy::PerSkill;
-    sync_skills(&source, &targets, &mut overwrite_policy)?;
+    sync_skills(&source, &selected, &mut overwrite_policy)?;
 
     Ok(())
 }
 
-fn install_package(package: String, skill: Option<&str>, install_to_user: bool) -> Result<()> {
+fn install_package(
+    package: String,
+    skill: Option<&str>,
+    user_scope: bool,
+    do_sync: bool,
+) -> Result<()> {
     let config = load()?;
+    let cwd = std::env::current_dir()?;
 
     // Expand target paths
     let targets: Vec<(String, PathBuf)> = config
@@ -151,18 +219,57 @@ fn install_package(package: String, skill: Option<&str>, install_to_user: bool) 
         .map(|t| (t.label.clone(), config::expand_home(&t.path)))
         .collect();
 
-    install::install_package(&package, skill, &targets, install_to_user)?;
+    // Without --user: also install to workspace source (cwd/.skillset/skills). With --user: only targets + ~/.skillset/skills.
+    let source_dir = if user_scope {
+        None
+    } else {
+        Some(resolve_source(false, &cwd, &config.source))
+    };
+
+    let user_store_dir = if user_scope {
+        Some(resolve_source(true, &cwd, &config.source))
+    } else {
+        None
+    };
+    install::install_package(
+        &package,
+        skill,
+        &targets,
+        source_dir.as_deref(),
+        user_store_dir.as_deref(),
+    )?;
+
+    if do_sync {
+        let source = resolve_source(user_scope, &cwd, &config.source);
+        if !source.exists() {
+            anyhow::bail!(
+                "Source directory not found: {} (cannot sync)",
+                source.display()
+            );
+        }
+        let selected = select_sync_targets(&targets)?;
+        if selected.is_empty() {
+            println!("No targets selected. Skipping sync.");
+        } else {
+            let mut overwrite_policy = OverwritePolicy::PerSkill;
+            sync_skills(&source, &selected, &mut overwrite_policy)?;
+        }
+    }
 
     Ok(())
 }
 
 fn add_skill(name: String, user_scope: bool, force: bool) -> Result<()> {
-    add::add_skill(&name, user_scope, force)?;
+    let config = load()?;
+    let cwd = std::env::current_dir()?;
+    let source = resolve_source(user_scope, &cwd, &config.source);
+    add::add_skill(&name, &source, user_scope, force)?;
     Ok(())
 }
 
 fn remove_skill(name: String, user_scope: bool, yes: bool) -> Result<()> {
     let config = load()?;
+    let cwd = std::env::current_dir()?;
 
     // Expand target paths
     let targets: Vec<(String, PathBuf)> = config
@@ -171,7 +278,12 @@ fn remove_skill(name: String, user_scope: bool, yes: bool) -> Result<()> {
         .map(|t| (t.label.clone(), config::expand_home(&t.path)))
         .collect();
 
-    remove::remove_skill(&name, &targets, user_scope, yes)?;
+    let user_source = if user_scope {
+        Some(resolve_source(true, &cwd, &config.source))
+    } else {
+        None
+    };
+    remove::remove_skill(&name, &targets, user_source.as_deref(), yes)?;
 
     Ok(())
 }
