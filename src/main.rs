@@ -17,11 +17,11 @@ use path::resolve_source;
 use skills::{discover_skills, sync_skills, OverwritePolicy};
 
 #[derive(Parser)]
-#[command(name = "skillset")]
+#[command(name = "skillset", version)]
 #[command(about = "Manage and sync AI agent skills across multiple tools", long_about = None)]
 struct Cli {
     /// Target user-level dir ~/.skillset/skills (source and install); without this, use workspace .skillset/skills
-    #[arg(long, global = true)]
+    #[arg(long, short = 'G', global = true)]
     user: bool,
 
     /// Skip overwrite prompts; always overwrite (sync and install)
@@ -294,6 +294,18 @@ fn install_package(
         config.install.use_ssh,
         &skill_dirs,
     )?;
+
+    if !do_sync {
+        if user_scope {
+            println!(
+                "\nNext: run `skillset sync --user` (or `skillset sync -G`) to copy skills to your configured tools."
+            );
+        } else {
+            println!(
+                "\nNext: run `skillset sync` to copy skills to your configured tools (Cursor, Claude Code, etc.)."
+            );
+        }
+    }
 
     if do_sync {
         let source = resolve_source(user_scope, &cwd, &config.source);

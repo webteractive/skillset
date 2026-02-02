@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Short alias `-G`** for `--user` flag (e.g. `skillset list -G`, `skillset sync -G`).
+- **Version flag** `--version` and `-V` to show current version.
+- **Install next-steps message** when running `install` without `--sync`: prints guidance to run `skillset sync` (or `skillset sync --user` / `skillset sync -G`) to copy skills to configured tools.
+
 ## [0.1.4] - 2025-02-02
 
 ### Changed

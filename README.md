@@ -90,7 +90,7 @@ Edit `~/.config/skillset/config.json` to customize:
 }
 ```
 
-- `source`: Path template for skills directory (resolved relative to cwd or `~/.skillset/skills` with `--user`)
+- `source`: Path template for skills directory (resolved relative to cwd or `~/.skillset/skills` with `--user` or `-G`)
 - `targets`: List of tool directories where skills should be synced. Supported tools (skills-capable CLIs/editors): **Cursor**, **Claude Code**, **Windsurf**, **Codex**, **OpenCode**, **Gemini**, **GitHub Copilot** (project: `.github/skills`, personal: `~/.copilot/skills`). New configs default to all; remove or add paths as needed.
 - `install.use_ssh`: When `true`, use SSH URLs (`git@github.com:owner/repo.git`) for `owner/repo` package specs. Useful for private repos when SSH keys are configured. Default: `false`.
 - `install.skill_dirs`: Dirs to look for skills in when installing (relative to repo root). Default: `[".claude/skills", "skills"]`. Override with `--dir` on the install command.
@@ -101,11 +101,11 @@ Edit `~/.config/skillset/config.json` to customize:
 
 By default, commands operate on the workspace source: `./.skillset/skills` (current working directory).
 
-Use **`--user`** to target the user-level dir **`~/.skillset/skills`** (source of truth and install destination); without it, commands use the workspace **`.skillset/skills`**.
+Use **`--user`** (or **`-G`**) to target the user-level dir **`~/.skillset/skills`** (source of truth and install destination); without it, commands use the workspace **`.skillset/skills`**.
 
 ```bash
 skillset list          # List workspace skills
-skillset list --user   # List user-level skills
+skillset list --user   # List user-level skills (or skillset list -G)
 ```
 
 ### Commands
@@ -116,7 +116,7 @@ Show skills in source and their status per target (present/missing).
 
 ```bash
 skillset list
-skillset list --user
+skillset list --user   # or skillset list -G
 ```
 
 Example output:
@@ -136,7 +136,7 @@ Copy skills from source to configured targets. Shows a **checklist** of supporte
 
 ```bash
 skillset sync
-skillset sync --user
+skillset sync --user   # or skillset sync -G
 ```
 
 Example checklist (press Enter or type `all` to sync to every target):
@@ -198,7 +198,7 @@ skillset install anthropics/skills --user
 skillset install org/repo --dir=.cursor/skills,.claude/skills,.opencode/skills
 ```
 
-Without `--user`, skills are copied to the workspace source (`./.skillset/skills`), creating it if needed. With `--user`, skills go to the user-level store (`~/.skillset/skills`) only. To copy into Cursor, Claude Code, etc., run **`skillset sync`** (or **`skillset install ... --sync`**) after installing.
+Without `--user`, skills are copied to the workspace source (`./.skillset/skills`), creating it if needed. With `--user` or `-G`, skills go to the user-level store (`~/.skillset/skills`) only. To copy into Cursor, Claude Code, etc., run **`skillset sync`** (or **`skillset install ... --sync`**) after installing.
 
 The package is cloned to `~/.cache/skillset/repos/owner-repo` (or `~/Library/Caches/skillset/repos/` on macOS). Full URLs use a hashed subdir name.
 
@@ -211,13 +211,13 @@ Scaffold a new skill with a template `SKILL.md` (and optional `README.md`).
 skillset add my-skill
 
 # Add to user-level store
-skillset add my-skill --user
+skillset add my-skill --user   # or skillset add my-skill -G
 
 # Overwrite if exists
 skillset add my-skill --force
 ```
 
-After adding or editing skills, run `skillset sync` (or `skillset sync --user`) to load them to configured tools.
+After adding or editing skills, run `skillset sync` (or `skillset sync --user` / `skillset sync -G`) to load them to configured tools.
 
 #### `remove <name>`
 
@@ -228,7 +228,7 @@ Remove a skill from all configured targets (and optionally from user store).
 skillset remove my-skill
 
 # Remove from targets and user store
-skillset remove my-skill --user
+skillset remove my-skill --user   # or skillset remove my-skill -G
 
 # Skip confirmation
 skillset remove my-skill --yes

@@ -21,9 +21,9 @@ Apply this skill when:
 | Flag | Source / destination |
 |------|----------------------|
 | (none) | Workspace: `./.skillset/skills` (relative to cwd) |
-| `--user` | User-level: `~/.skillset/skills` |
+| `--user` / `-G` | User-level: `~/.skillset/skills` |
 
-Default is workspace. Use `--user` for global install/list/sync/add/remove.
+Default is workspace. Use `--user` or `-G` for global install/list/sync/add/remove.
 
 ## Commands
 
@@ -33,7 +33,7 @@ Show skills in source and status per target (present/missing).
 
 ```bash
 skillset list
-skillset list --user
+skillset list --user   # or skillset list -G
 ```
 
 ### `skillset sync`
@@ -42,7 +42,7 @@ Copy skills from source to configured targets. Shows a **checklist** of supporte
 
 ```bash
 skillset sync
-skillset sync --user
+skillset sync --user   # or skillset sync -G
 ```
 
 Example checklist (press Enter or type `all` to sync to every target):
@@ -72,7 +72,7 @@ skillset install webteractive/skillset --skill=use-skillset
 skillset install webteractive/skillset --sync
 
 # Install to user-level store
-skillset install webteractive/skillset --user
+skillset install webteractive/skillset --user   # or skillset install webteractive/skillset -G
 ```
 
 Package is cloned to `~/.cache/skillset/repos/owner-repo` (or `~/Library/Caches/skillset/repos/` on macOS). The repo must contain a skills directory at **`.cursor/skills`** or **`skills`** at repo root; each skill is a subdirectory with a `SKILL.md` file.
@@ -83,7 +83,7 @@ Scaffold a new skill with template `SKILL.md` (and optional `README.md`).
 
 ```bash
 skillset add my-skill
-skillset add my-skill --user
+skillset add my-skill --user   # or skillset add my-skill -G
 skillset add my-skill --force   # overwrite if exists
 ```
 
@@ -93,7 +93,7 @@ Remove a skill from all configured targets (and optionally from user store).
 
 ```bash
 skillset remove my-skill
-skillset remove my-skill --user
+skillset remove my-skill --user   # or skillset remove my-skill -G
 skillset remove my-skill --yes   # skip confirmation
 ```
 
@@ -118,7 +118,7 @@ Default targets include Cursor, Claude Code, Windsurf, Codex, OpenCode, Gemini, 
 
 1. **Install** into user store and sync to tools:
    ```bash
-   skillset install webteractive/skillset --user --sync
+   skillset install webteractive/skillset --user --sync   # or -G --sync
    ```
    Or install to current workspace then sync:
    ```bash
@@ -128,12 +128,12 @@ Default targets include Cursor, Claude Code, Windsurf, Codex, OpenCode, Gemini, 
 
 2. **List** to verify:
    ```bash
-   skillset list --user
+   skillset list --user   # or skillset list -G
    ```
 
 3. After editing skills in source, run **sync** again to update tools:
    ```bash
-   skillset sync --user
+   skillset sync --user   # or skillset sync -G
    ```
 
 ## Requirements
