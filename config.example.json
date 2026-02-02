@@ -1,7 +1,8 @@
 {
   "source": ".skillset/skills",
   "install": {
-    "use_ssh": false
+    "use_ssh": false,
+    "skill_dirs": [".claude/skills", "skills"]
   },
   "targets": [
     { "label": "Cursor", "path": "~/.cursor/skills" },

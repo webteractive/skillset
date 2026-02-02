@@ -19,11 +19,27 @@ pub struct Target {
     pub path: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+fn default_skill_dirs() -> Vec<String> {
+    vec![".claude/skills".to_string(), "skills".to_string()]
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct InstallConfig {
     /// When true, use SSH URL (git@github.com:owner/repo.git) for owner/repo specs
     #[serde(default)]
     pub use_ssh: bool,
+    /// Directories to look for skills in when installing from a repo (relative to repo root)
+    #[serde(default = "default_skill_dirs")]
+    pub skill_dirs: Vec<String>,
+}
+
+impl Default for InstallConfig {
+    fn default() -> Self {
+        Self {
+            use_ssh: false,
+            skill_dirs: default_skill_dirs(),
+        }
+    }
 }
 
 fn default_source() -> String {

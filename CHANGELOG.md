@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2025-02-02
+
+### Changed
+
+- **Install skill dirs:** Default lookup order is now `.claude/skills`, then `skills` (Anthropic convention first). Previously checked `.cursor/skills` first.
+
+### Added
+
+- **Config `install.skill_dirs`:** Customize which dirs to look for skills in when installing. Default: `[".claude/skills", "skills"]`.
+- **Flag `--dir`:** Override skill dirs for a single install (comma-separated, e.g. `--dir=.cursor/skills,.claude/skills`).
+
 ## [0.1.3] - 2025-02-02
 
 ### Added
@@ -55,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - macOS and Linux only. Windows is not supported.
 
+[0.1.4]: https://github.com/webteractive/skillset/releases/tag/v0.1.4
 [0.1.3]: https://github.com/webteractive/skillset/releases/tag/v0.1.3
 [0.1.2]: https://github.com/webteractive/skillset/releases/tag/v0.1.2
 [0.1.1]: https://github.com/webteractive/skillset/releases/tag/v0.1.1

@@ -90,26 +90,23 @@ pub fn resolve_package(spec: &str, use_ssh: bool) -> Result<PathBuf> {
 }
 
 /// Find the skills directory within a repository root.
-/// Checks for .cursor/skills first, then skills.
-pub fn find_skills_dir(repo_root: &Path) -> Result<PathBuf> {
-    let cursor_skills = repo_root.join(".cursor/skills");
-    let skills = repo_root.join("skills");
-
-    if cursor_skills.exists() {
-        if discover_skills(&cursor_skills)?.is_empty() {
-            anyhow::bail!(".cursor/skills exists but contains no skills");
+/// Checks each dir in skill_dirs in order; uses first that exists and contains skills.
+pub fn find_skills_dir(repo_root: &Path, skill_dirs: &[String]) -> Result<PathBuf> {
+    for dir in skill_dirs {
+        let path = repo_root.join(dir);
+        if path.exists() {
+            if discover_skills(&path)?.is_empty() {
+                anyhow::bail!("{} exists but contains no skills", dir);
+            }
+            return Ok(path);
         }
-        return Ok(cursor_skills);
     }
 
-    if skills.exists() {
-        if discover_skills(&skills)?.is_empty() {
-            anyhow::bail!("skills exists but contains no skills");
-        }
-        return Ok(skills);
-    }
-
-    anyhow::bail!("No skills directory found in repository (checked .cursor/skills and skills)");
+    let checked = skill_dirs.join(", ");
+    anyhow::bail!(
+        "No skills directory found in repository (checked {})",
+        checked
+    );
 }
 
 /// Install skills from a package into the source of truth only (workspace or user store).
@@ -124,10 +121,11 @@ pub fn install_package(
     user_store_dir: Option<&Path>,
     overwrite_all: bool,
     use_ssh: bool,
+    skill_dirs: &[String],
 ) -> Result<()> {
     // Resolve package
     let repo_dir = resolve_package(spec, use_ssh)?;
-    let skills_dir = find_skills_dir(&repo_dir)?;
+    let skills_dir = find_skills_dir(&repo_dir, skill_dirs)?;
     let all_skills = discover_skills(&skills_dir)?;
 
     if all_skills.is_empty() {

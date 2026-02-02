@@ -93,6 +93,7 @@ Edit `~/.config/skillset/config.json` to customize:
 - `source`: Path template for skills directory (resolved relative to cwd or `~/.skillset/skills` with `--user`)
 - `targets`: List of tool directories where skills should be synced. Supported tools (skills-capable CLIs/editors): **Cursor**, **Claude Code**, **Windsurf**, **Codex**, **OpenCode**, **Gemini**, **GitHub Copilot** (project: `.github/skills`, personal: `~/.copilot/skills`). New configs default to all; remove or add paths as needed.
 - `install.use_ssh`: When `true`, use SSH URLs (`git@github.com:owner/repo.git`) for `owner/repo` package specs. Useful for private repos when SSH keys are configured. Default: `false`.
+- `install.skill_dirs`: Dirs to look for skills in when installing (relative to repo root). Default: `[".claude/skills", "skills"]`. Override with `--dir` on the install command.
 
 ## Usage
 
@@ -158,7 +159,7 @@ Skill 'my-skill' already exists at cursor. Overwrite? [y/n/all]
 
 Install skills from a GitHub repository into the **source of truth only** (workspace or user store). Does not copy to AI tool dirs (Cursor, Claude Code, etc.); use **`skillset sync`** or **`install --sync`** to copy to tools.
 
-Packages must have a skills directory at **`.cursor/skills`** or **`skills`** at repo root; this repo provides a **use-skillset** skill (how to use the CLI) at `skills/use-skillset/`.
+Packages must have a skills directory. By default, install looks for (in order) **`.claude/skills`** (Anthropic) or **`skills`** at repo root. This repo provides a **use-skillset** skill at `skills/use-skillset/`. Use **`--dir`** or config **`install.skill_dirs`** to customize which dirs to check.
 
 **Package spec format:**
 
@@ -192,6 +193,9 @@ skillset install anthropics/skills --sync
 
 # Install and add to user-level store
 skillset install anthropics/skills --user
+
+# Custom dirs to look for skills (comma-separated)
+skillset install org/repo --dir=.cursor/skills,.claude/skills,.opencode/skills
 ```
 
 Without `--user`, skills are copied to the workspace source (`./.skillset/skills`), creating it if needed. With `--user`, skills go to the user-level store (`~/.skillset/skills`) only. To copy into Cursor, Claude Code, etc., run **`skillset sync`** (or **`skillset install ... --sync`**) after installing.

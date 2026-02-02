@@ -40,7 +40,7 @@ enum Commands {
     Sync,
     /// Install skills from a vendor/package (e.g., anthropics/skills)
     Install {
-        /// Package spec in owner/repo format
+        /// Package spec in owner/repo format or full Git URL
         package: String,
         /// Install only the specified skill
         #[arg(long)]
@@ -48,6 +48,9 @@ enum Commands {
         /// After installing, sync skills from source to configured targets
         #[arg(long)]
         sync: bool,
+        /// Comma-separated dirs to look for skills in (e.g., .cursor/skills,.claude/skills,skills)
+        #[arg(long)]
+        dir: Option<String>,
     },
     /// Add/scaffold a new skill
     Add {
@@ -83,7 +86,15 @@ fn main() -> Result<()> {
             package,
             skill,
             sync,
-        } => install_package(package, skill.as_deref(), cli.user, sync, cli.yes)?,
+            dir,
+        } => install_package(
+            package,
+            skill.as_deref(),
+            cli.user,
+            sync,
+            cli.yes,
+            dir.as_deref(),
+        )?,
         Commands::Add { name, force } => add_skill(name, cli.user, force)?,
         Commands::Remove { name, yes } => remove_skill(name, cli.user, yes || cli.yes)?,
         Commands::Doc { agents_md } => doc_output(agents_md)?,
@@ -244,6 +255,7 @@ fn install_package(
     user_scope: bool,
     do_sync: bool,
     yes: bool,
+    dir: Option<&str>,
 ) -> Result<()> {
     let config = load()?;
     let cwd = std::env::current_dir()?;
@@ -263,6 +275,16 @@ fn install_package(
     } else {
         None
     };
+
+    let skill_dirs: Vec<String> = if let Some(d) = dir {
+        d.split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    } else {
+        config.install.skill_dirs.clone()
+    };
+
     install::install_package(
         &package,
         skill,
@@ -270,6 +292,7 @@ fn install_package(
         user_store_dir.as_deref(),
         yes,
         config.install.use_ssh,
+        &skill_dirs,
     )?;
 
     if do_sync {
