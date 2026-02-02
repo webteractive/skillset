@@ -66,6 +66,13 @@ cargo install --path .
 
 **Common flags:** `--user` / `-G` (user-level), `--sync` (with install), `--yes` (skip prompts)
 
+#### `install`
+
+Install skills from a GitHub repo. Package format: `owner/repo` (HTTPS by default) or a full Git URL. Skillset clones via git, so **if you can `git clone` a repo, you can install from it**—no extra auth. Your existing SSH keys, credential helper, or PAT in the URL all work as usual.
+
+- **Public repos:** `skillset install owner/repo`
+- **Private repos:** Use the same URL you’d use for `git clone`. With SSH keys set up, `git@github.com:org/private-repo.git` works. Or `https://github.com/org/private-repo.git` if you use a credential helper or PAT. Set `install.use_ssh: true` in config to make `owner/repo` resolve to SSH by default.
+
 ### Examples
 
 ```bash
@@ -78,8 +85,9 @@ skillset install webteractive/skillset
 skillset install anthropics/skills --skill=frontend-design
 skillset install org/repo --sync --user
 
-# Private repos (SSH or set install.use_ssh in config)
+# Private repos—use whatever URL works with your git setup
 skillset install git@github.com:org/private-repo.git
+skillset install https://github.com/org/private-repo.git   # if using credential helper or PAT
 
 # Create and sync
 skillset add my-skill
