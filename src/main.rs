@@ -269,6 +269,7 @@ fn install_package(
         source_dir.as_deref(),
         user_store_dir.as_deref(),
         yes,
+        config.install.use_ssh,
     )?;
 
     if do_sync {

@@ -1,25 +1,34 @@
 use crate::skills::{copy_skill, discover_skills};
 use anyhow::{Context, Result};
+use std::hash::{Hash, Hasher};
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
+/// Check if spec looks like a full Git URL (HTTPS, HTTP, SSH, or git@)
+fn is_git_url(spec: &str) -> bool {
+    spec.starts_with("https://")
+        || spec.starts_with("http://")
+        || spec.starts_with("git@")
+        || spec.starts_with("ssh://")
+}
+
+/// Generate a stable cache directory name from a URL hash
+fn cache_dir_name_from_url(url: &str) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    url.hash(&mut hasher);
+    format!("url-{:016x}", hasher.finish())
+}
+
 /// Resolve a vendor/package spec to a local path via git clone.
-/// Format: owner/repo (e.g., anthropics/skills)
-pub fn resolve_package(spec: &str) -> Result<PathBuf> {
-    // Parse owner/repo
-    let parts: Vec<&str> = spec.split('/').collect();
-    if parts.len() != 2 {
-        anyhow::bail!(
-            "Invalid package spec '{}'. Expected format: owner/repo",
-            spec
-        );
-    }
-
-    let owner = parts[0];
-    let repo = parts[1];
-
+///
+/// Format:
+///   - owner/repo (e.g., anthropics/skills) - uses GitHub
+///   - Full Git URL (e.g., git@github.com:anthropics/skills.git, https://github.com/anthropics/skills.git)
+///
+/// The use_ssh flag determines whether owner/repo format uses SSH or HTTPS URLs.
+pub fn resolve_package(spec: &str, use_ssh: bool) -> Result<PathBuf> {
     // Determine cache directory
     let cache_dir = dirs::cache_dir()
         .context("Failed to determine cache directory")?
@@ -28,8 +37,32 @@ pub fn resolve_package(spec: &str) -> Result<PathBuf> {
 
     std::fs::create_dir_all(&cache_dir).context("Failed to create cache directory")?;
 
-    let repo_dir = cache_dir.join(format!("{}-{}", owner, repo));
-    let repo_url = format!("https://github.com/{}/{}.git", owner, repo);
+    let (repo_url, repo_dir_name) = if is_git_url(spec) {
+        // Use the URL as-is and derive cache dir name from hash
+        (spec.to_string(), cache_dir_name_from_url(spec))
+    } else {
+        // Parse owner/repo
+        let parts: Vec<&str> = spec.split('/').collect();
+        if parts.len() != 2 {
+            anyhow::bail!(
+                "Invalid package spec '{}'. Expected format: owner/repo or full Git URL",
+                spec
+            );
+        }
+
+        let owner = parts[0];
+        let repo = parts[1];
+
+        let url = if use_ssh {
+            format!("git@github.com:{}:{}.git", owner, repo)
+        } else {
+            format!("https://github.com/{}/{}.git", owner, repo)
+        };
+
+        (url, format!("{}-{}", owner, repo))
+    };
+
+    let repo_dir = cache_dir.join(&repo_dir_name);
 
     if repo_dir.exists() {
         println!("Package already cached at: {}", repo_dir.display());
@@ -90,9 +123,10 @@ pub fn install_package(
     source_dir: Option<&Path>,
     user_store_dir: Option<&Path>,
     overwrite_all: bool,
+    use_ssh: bool,
 ) -> Result<()> {
     // Resolve package
-    let repo_dir = resolve_package(spec)?;
+    let repo_dir = resolve_package(spec, use_ssh)?;
     let skills_dir = find_skills_dir(&repo_dir)?;
     let all_skills = discover_skills(&skills_dir)?;
 

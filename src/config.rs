@@ -9,12 +9,21 @@ pub struct Config {
     pub source: String,
     #[serde(default = "default_targets")]
     pub targets: Vec<Target>,
+    #[serde(default)]
+    pub install: InstallConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Target {
     pub label: String,
     pub path: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct InstallConfig {
+    /// When true, use SSH URL (git@github.com:owner/repo.git) for owner/repo specs
+    #[serde(default)]
+    pub use_ssh: bool,
 }
 
 fn default_source() -> String {
@@ -79,6 +88,7 @@ pub fn load() -> Result<Config> {
         let config = Config {
             source: default_source(),
             targets: default_targets(),
+            install: InstallConfig::default(),
         };
         save(&config)?;
         println!("Config created at: {}", path.display());

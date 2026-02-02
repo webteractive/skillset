@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2025-02-02
+
+### Added
+
+- **Private repo install:** Full Git URLs now supported (`git@github.com:org/repo.git`, `https://...`, `ssh://...`). Use for private repos or non-GitHub hosts.
+- **Config option `install.use_ssh`:** When `true`, uses SSH URLs for `owner/repo` format. Add to `~/.config/skillset/config.json` for private GitHub repos when SSH keys are configured.
+
 ## [0.1.2] - 2025-02-01
 
 ### Changed
@@ -48,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - macOS and Linux only. Windows is not supported.
 
+[0.1.3]: https://github.com/webteractive/skillset/releases/tag/v0.1.3
 [0.1.2]: https://github.com/webteractive/skillset/releases/tag/v0.1.2
 [0.1.1]: https://github.com/webteractive/skillset/releases/tag/v0.1.1
 [0.1.0]: https://github.com/webteractive/skillset/releases/tag/v0.1.0

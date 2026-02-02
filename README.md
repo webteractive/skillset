@@ -92,6 +92,7 @@ Edit `~/.config/skillset/config.json` to customize:
 
 - `source`: Path template for skills directory (resolved relative to cwd or `~/.skillset/skills` with `--user`)
 - `targets`: List of tool directories where skills should be synced. Supported tools (skills-capable CLIs/editors): **Cursor**, **Claude Code**, **Windsurf**, **Codex**, **OpenCode**, **Gemini**, **GitHub Copilot** (project: `.github/skills`, personal: `~/.copilot/skills`). New configs default to all; remove or add paths as needed.
+- `install.use_ssh`: When `true`, use SSH URLs (`git@github.com:owner/repo.git`) for `owner/repo` package specs. Useful for private repos when SSH keys are configured. Default: `false`.
 
 ## Usage
 
@@ -159,6 +160,24 @@ Install skills from a GitHub repository into the **source of truth only** (works
 
 Packages must have a skills directory at **`.cursor/skills`** or **`skills`** at repo root; this repo provides a **use-skillset** skill (how to use the CLI) at `skills/use-skillset/`.
 
+**Package spec format:**
+
+- **`owner/repo`** — GitHub shorthand (e.g., `webteractive/skillset`). Uses HTTPS by default.
+- **Full Git URL** — For private repos or non-GitHub hosts: `git@github.com:org/repo.git`, `https://github.com/org/repo.git`, or `ssh://git@gitlab.com/org/repo.git`. Use whatever URL works with your git credentials.
+
+**Private repositories:**
+
+```bash
+# Use full SSH URL (works with SSH keys)
+skillset install git@github.com:org/private-repo.git
+
+# Use full HTTPS URL (works with credential helper or PAT in URL)
+skillset install https://github.com/org/private-repo.git
+
+# Or set "install": { "use_ssh": true } in config.json to use SSH for owner/repo format
+skillset install org/private-repo
+```
+
 ```bash
 # Install all skills from a package (including this repo's use-skillset skill)
 skillset install webteractive/skillset
@@ -177,7 +196,7 @@ skillset install anthropics/skills --user
 
 Without `--user`, skills are copied to the workspace source (`./.skillset/skills`), creating it if needed. With `--user`, skills go to the user-level store (`~/.skillset/skills`) only. To copy into Cursor, Claude Code, etc., run **`skillset sync`** (or **`skillset install ... --sync`**) after installing.
 
-The package is cloned to `~/.cache/skillset/repos/owner-repo` (or `~/Library/Caches/skillset/repos/` on macOS).
+The package is cloned to `~/.cache/skillset/repos/owner-repo` (or `~/Library/Caches/skillset/repos/` on macOS). Full URLs use a hashed subdir name.
 
 #### `add <name>`
 
