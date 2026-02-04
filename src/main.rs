@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::io::IsTerminal;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod add;
 mod config;
@@ -34,8 +34,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// List skills in source and show status per target
-    List,
+    /// List skills in source and show status per target (or a specific tool via --tool)
+    List {
+        /// Show the skills currently loaded for a specific tool (e.g., --tool=codex)
+        #[arg(long)]
+        tool: Option<String>,
+    },
     /// Sync skills from source to configured targets
     Sync,
     /// Install skills from a vendor/package (e.g., anthropics/skills)
@@ -80,7 +84,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::List => list_skills(cli.user)?,
+        Commands::List { tool } => list_skills(cli.user, tool.as_deref())?,
         Commands::Sync => sync_skills_cli(cli.user, cli.yes)?,
         Commands::Install {
             package,
@@ -103,7 +107,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn list_skills(user_scope: bool) -> Result<()> {
+fn list_skills(user_scope: bool, tool: Option<&str>) -> Result<()> {
     let config = load()?;
     let cwd = std::env::current_dir()?;
     let source = resolve_source(user_scope, &cwd, &config.source);
@@ -112,7 +116,20 @@ fn list_skills(user_scope: bool) -> Result<()> {
     println!("Source: {} ({})", source.display(), scope_label);
     println!("Config: {}\n", config_path()?.display());
 
-    let skills = discover_skills(&source)?;
+    match tool {
+        Some(tool_name) => {
+            list_skills_for_tool(tool_name, user_scope, &cwd)?;
+        }
+        None => {
+            list_skills_with_status(&config, &source)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn list_skills_with_status(config: &config::Config, source: &Path) -> Result<()> {
+    let skills = discover_skills(source)?;
 
     if skills.is_empty() {
         println!("No skills found in source directory.");
@@ -138,6 +155,62 @@ fn list_skills(user_scope: bool) -> Result<()> {
             }
         }
         println!("  {}  {}", skill, statuses.join("  "));
+    }
+
+    Ok(())
+}
+
+fn list_skills_for_tool(tool: &str, user_scope: bool, cwd: &Path) -> Result<()> {
+    let tool_targets = supported_tools();
+    let tool_lower = tool.to_lowercase();
+    let mut matches = tool_targets
+        .into_iter()
+        .filter(|t| t.label.to_lowercase().contains(&tool_lower))
+        .collect::<Vec<_>>();
+
+    if matches.is_empty() {
+        anyhow::bail!(
+            "Unknown tool '{}'. Try one of the supported tool names.",
+            tool
+        );
+    }
+
+    // When multiple tools match the filter, prefer exact case-insensitive match, otherwise first result.
+    if matches.len() > 1 {
+        if let Some(exact) = matches
+            .iter()
+            .find(|t| t.label.eq_ignore_ascii_case(tool))
+            .cloned()
+        {
+            matches = vec![exact];
+        }
+    }
+
+    for target in matches {
+        let path = if user_scope || target.path.starts_with("~/") {
+            config::expand_home(&target.path)
+        } else {
+            cwd.join(target.path.strip_prefix("~/").unwrap_or(&target.path))
+        };
+        println!("Tool: {}", target.label);
+        println!("Path: {}", path.display());
+
+        if !path.exists() {
+            println!("(directory not found)");
+            continue;
+        }
+
+        let tool_skills = discover_skills(&path)?;
+        if tool_skills.is_empty() {
+            println!("No skills found for this tool.\n");
+            continue;
+        }
+
+        println!("Skills:");
+        for skill in tool_skills {
+            println!("  {}", skill);
+        }
+        println!();
     }
 
     Ok(())
