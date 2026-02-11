@@ -55,6 +55,9 @@ enum Commands {
         /// Comma-separated dirs to look for skills in (e.g., .cursor/skills,.claude/skills,skills)
         #[arg(long)]
         dir: Option<String>,
+        /// Pull latest from remote before installing (refreshes cached repo)
+        #[arg(long)]
+        from_remote: bool,
     },
     /// Add/scaffold a new skill
     Add {
@@ -91,6 +94,7 @@ fn main() -> Result<()> {
             skill,
             sync,
             dir,
+            from_remote,
         } => install_package(
             package,
             skill.as_deref(),
@@ -98,6 +102,7 @@ fn main() -> Result<()> {
             sync,
             cli.yes,
             dir.as_deref(),
+            from_remote,
         )?,
         Commands::Add { name, force } => add_skill(name, cli.user, force)?,
         Commands::Remove { name, yes } => remove_skill(name, cli.user, yes || cli.yes)?,
@@ -329,6 +334,7 @@ fn install_package(
     do_sync: bool,
     yes: bool,
     dir: Option<&str>,
+    from_remote: bool,
 ) -> Result<()> {
     let config = load()?;
     let cwd = std::env::current_dir()?;
@@ -366,6 +372,7 @@ fn install_package(
         yes,
         config.install.use_ssh,
         &skill_dirs,
+        from_remote,
     )?;
 
     if !do_sync {

@@ -28,7 +28,7 @@ fn cache_dir_name_from_url(url: &str) -> String {
 ///   - Full Git URL (e.g., git@github.com:anthropics/skills.git, https://github.com/anthropics/skills.git)
 ///
 /// The use_ssh flag determines whether owner/repo format uses SSH or HTTPS URLs.
-pub fn resolve_package(spec: &str, use_ssh: bool) -> Result<PathBuf> {
+pub fn resolve_package(spec: &str, use_ssh: bool, from_remote: bool) -> Result<PathBuf> {
     // Determine cache directory
     let cache_dir = dirs::cache_dir()
         .context("Failed to determine cache directory")?
@@ -65,8 +65,22 @@ pub fn resolve_package(spec: &str, use_ssh: bool) -> Result<PathBuf> {
     let repo_dir = cache_dir.join(&repo_dir_name);
 
     if repo_dir.exists() {
-        println!("Package already cached at: {}", repo_dir.display());
-        // Optionally git pull in the future; for MVP, use as-is
+        if from_remote {
+            println!("Pulling latest from remote for {}...", spec);
+            let status = Command::new("git")
+                .arg("-C")
+                .arg(&repo_dir)
+                .arg("pull")
+                .status()
+                .context("Failed to run git pull. Is git installed?")?;
+
+            if !status.success() {
+                anyhow::bail!("Failed to pull latest for: {}", spec);
+            }
+            println!("Updated cached package at: {}", repo_dir.display());
+        } else {
+            println!("Package already cached at: {}", repo_dir.display());
+        }
     } else {
         println!("Cloning {} from {}...", spec, repo_url);
 
@@ -122,9 +136,10 @@ pub fn install_package(
     overwrite_all: bool,
     use_ssh: bool,
     skill_dirs: &[String],
+    from_remote: bool,
 ) -> Result<()> {
     // Resolve package
-    let repo_dir = resolve_package(spec, use_ssh)?;
+    let repo_dir = resolve_package(spec, use_ssh, from_remote)?;
     let skills_dir = find_skills_dir(&repo_dir, skill_dirs)?;
     let all_skills = discover_skills(&skills_dir)?;
 
