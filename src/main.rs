@@ -79,6 +79,9 @@ enum Commands {
         #[arg(long)]
         yes: bool,
     },
+    /// Update skillset to the latest version
+    #[command(name = "self-update")]
+    SelfUpdate,
     /// Output documentation snippets
     Doc {
         /// Output AGENTS.md snippet
@@ -112,6 +115,7 @@ fn main() -> Result<()> {
         )?,
         Commands::Add { name, force: cmd_force } => add_skill(name, cli.user, cmd_force || force)?,
         Commands::Remove { name, yes } => remove_skill(name, cli.user, yes || force)?,
+        Commands::SelfUpdate => self_update()?,
         Commands::Doc { agents_md } => doc_output(agents_md)?,
     }
 
@@ -444,6 +448,21 @@ fn remove_skill(name: String, user_scope: bool, yes: bool) -> Result<()> {
         None
     };
     remove::remove_skill(&name, &targets, user_source.as_deref(), yes)?;
+
+    Ok(())
+}
+
+fn self_update() -> Result<()> {
+    println!("Updating skillset to the latest version...");
+    let status = std::process::Command::new("sh")
+        .arg("-c")
+        .arg("curl -sSL https://raw.githubusercontent.com/webteractive/skillset/main/install.sh | sh -s -- --download")
+        .status()
+        .context("Failed to run install script")?;
+
+    if !status.success() {
+        anyhow::bail!("Self-update failed");
+    }
 
     Ok(())
 }

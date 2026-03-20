@@ -62,9 +62,10 @@ cargo install --path .
 | `skillset install <owner/repo>` | Install skills from a GitHub repo |
 | `skillset add <name>` | Scaffold a new skill with template |
 | `skillset remove <name>` | Remove skill from targets (optionally from source) |
+| `skillset self-update` | Update skillset to the latest version |
 | `skillset doc --agents-md` | Output AGENTS.md snippet |
 
-**Common flags:** `--user` / `-G` (user-level), `--sync` (with install), `--yes` (skip prompts)
+**Common flags:** `--user` / `-G` (user-level), `--sync` (with install), `--force` (skip all prompts)
 
 #### `install`
 
