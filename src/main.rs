@@ -24,8 +24,12 @@ struct Cli {
     #[arg(long, short = 'G', global = true)]
     user: bool,
 
-    /// Skip overwrite prompts; always overwrite (sync and install)
-    #[arg(short = 'y', long, global = true)]
+    /// Skip all prompts: overwrite existing, accept defaults, no target selection
+    #[arg(long, global = true)]
+    force: bool,
+
+    /// Alias for --force (hidden, backward compat)
+    #[arg(short = 'y', long, global = true, hide = true)]
     yes: bool,
 
     #[command(subcommand)]
@@ -86,9 +90,11 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    let force = cli.force || cli.yes;
+
     match cli.command {
         Commands::List { tool } => list_skills(cli.user, tool.as_deref())?,
-        Commands::Sync => sync_skills_cli(cli.user, cli.yes)?,
+        Commands::Sync => sync_skills_cli(cli.user, force)?,
         Commands::Install {
             package,
             skill,
@@ -100,12 +106,12 @@ fn main() -> Result<()> {
             skill.as_deref(),
             cli.user,
             sync,
-            cli.yes,
+            force,
             dir.as_deref(),
             from_remote,
         )?,
-        Commands::Add { name, force } => add_skill(name, cli.user, force)?,
-        Commands::Remove { name, yes } => remove_skill(name, cli.user, yes || cli.yes)?,
+        Commands::Add { name, force: cmd_force } => add_skill(name, cli.user, cmd_force || force)?,
+        Commands::Remove { name, yes } => remove_skill(name, cli.user, yes || force)?,
         Commands::Doc { agents_md } => doc_output(agents_md)?,
     }
 
@@ -222,12 +228,12 @@ fn list_skills_for_tool(tool: &str, user_scope: bool, cwd: &Path) -> Result<()> 
 }
 
 /// Show a checkbox list of supported targets and return the subset the user selects.
-/// When stdin is not a TTY, returns all targets (non-interactive).
-fn select_sync_targets(targets: &[(String, PathBuf)]) -> Result<Vec<(String, PathBuf)>> {
+/// When --force is set or stdin is not a TTY, returns all targets without prompting.
+fn select_sync_targets(targets: &[(String, PathBuf)], force: bool) -> Result<Vec<(String, PathBuf)>> {
     if targets.is_empty() {
         return Ok(vec![]);
     }
-    if !std::io::stdin().is_terminal() {
+    if force || !std::io::stdin().is_terminal() {
         return Ok(targets.to_vec());
     }
 
@@ -294,7 +300,7 @@ fn sync_targets_for_scope(cwd: &std::path::Path, user_scope: bool) -> Vec<(Strin
         .collect()
 }
 
-fn sync_skills_cli(user_scope: bool, yes: bool) -> Result<()> {
+fn sync_skills_cli(user_scope: bool, force: bool) -> Result<()> {
     let config = load()?;
     let cwd = std::env::current_dir()?;
     let source = resolve_source(user_scope, &cwd, &config.source);
@@ -311,13 +317,13 @@ fn sync_skills_cli(user_scope: bool, yes: bool) -> Result<()> {
     println!("Source: {} ({})", source.display(), scope_label);
 
     let targets = sync_targets_for_scope(&cwd, user_scope);
-    let selected = select_sync_targets(&targets)?;
+    let selected = select_sync_targets(&targets, force)?;
     if selected.is_empty() {
         println!("No targets selected. Nothing to sync.");
         return Ok(());
     }
 
-    let mut overwrite_policy = if yes {
+    let mut overwrite_policy = if force {
         OverwritePolicy::All
     } else {
         OverwritePolicy::PerSkill
@@ -332,7 +338,7 @@ fn install_package(
     skill: Option<&str>,
     user_scope: bool,
     do_sync: bool,
-    yes: bool,
+    force: bool,
     dir: Option<&str>,
     from_remote: bool,
 ) -> Result<()> {
@@ -369,7 +375,7 @@ fn install_package(
         skill,
         source_dir.as_deref(),
         user_store_dir.as_deref(),
-        yes,
+        force,
         config.install.use_ssh,
         &skill_dirs,
         from_remote,
@@ -397,11 +403,11 @@ fn install_package(
         }
         let scope_label = if user_scope { "user" } else { "workspace" };
         println!("\nSyncing from {} ({})", source.display(), scope_label);
-        let selected = select_sync_targets(&targets)?;
+        let selected = select_sync_targets(&targets, force)?;
         if selected.is_empty() {
             println!("No targets selected. Skipping sync.");
         } else {
-            let mut overwrite_policy = if yes {
+            let mut overwrite_policy = if force {
                 OverwritePolicy::All
             } else {
                 OverwritePolicy::PerSkill
