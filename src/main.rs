@@ -13,6 +13,7 @@ mod registry;
 mod remove;
 mod skills;
 mod validate;
+mod version_check;
 
 use config::{config_path, load, supported_tools};
 use doc::agents_md_snippet;
@@ -154,6 +155,7 @@ fn main() -> Result<()> {
 
     let force = cli.force || cli.yes;
     let dry_run = cli.dry_run;
+    let is_self_update = matches!(cli.command, Commands::SelfUpdate);
 
     match cli.command {
         Commands::List {
@@ -197,6 +199,10 @@ fn main() -> Result<()> {
         }
         Commands::SelfUpdate => self_update()?,
         Commands::Doc { agents_md } => doc_output(agents_md)?,
+    }
+
+    if !is_self_update {
+        version_check::check_and_notify();
     }
 
     Ok(())
