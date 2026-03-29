@@ -63,6 +63,7 @@ cargo install --path .
 | `skillset add <name>` | Scaffold a new skill with template |
 | `skillset remove <name>` | Remove skill from targets (optionally from source) |
 | `skillset validate` | Check SKILL.md frontmatter for errors |
+| `skillset where [skill]` | Show where skills are installed (tracked instances) |
 | `skillset config <action>` | Manage configuration (show, add/remove targets, reset) |
 | `skillset completions <shell>` | Generate shell completions (bash, zsh, fish) |
 | `skillset self-update` | Update skillset to the latest version |
@@ -144,6 +145,25 @@ Edit `~/.config/skillset/config.json`:
 | `install.skill_dirs` | Dirs to search in repos (default: `[".claude/skills", "skills"]`) |
 
 See `config.example.json` for the full default config.
+
+---
+
+## Tracking Skill Instances
+
+`skillset where` shows where skills are installed across all targets:
+
+```bash
+# Show all tracked instances
+skillset where
+
+# Show instances for a specific skill
+skillset where my-skill
+
+# Scan existing targets and register instances (run once after upgrading)
+skillset where --scan
+```
+
+The registry is auto-managed — instances are tracked on every `sync` and cleaned up when paths no longer exist.
 
 ---
 

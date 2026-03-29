@@ -1,3 +1,4 @@
+use crate::registry;
 use anyhow::{Context, Result};
 use std::fs;
 use std::io::Write;
@@ -57,6 +58,7 @@ pub fn remove_skill(
     for (label, skill_path) in &targets_with_skill {
         fs::remove_dir_all(skill_path)
             .with_context(|| format!("Failed to remove skill '{}' from {}", name, label))?;
+        registry::remove_path(name, &skill_path.to_string_lossy()).ok();
         println!("  Removed {} from {}", name, label);
     }
 
@@ -69,6 +71,9 @@ pub fn remove_skill(
             println!("  Removed {} from user store", name);
         }
     }
+
+    // Clean up registry
+    registry::remove_skill(name).ok();
 
     println!("Remove complete.");
     Ok(())

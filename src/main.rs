@@ -9,6 +9,7 @@ mod config;
 mod doc;
 mod install;
 mod path;
+mod registry;
 mod remove;
 mod skills;
 mod validate;
@@ -97,6 +98,14 @@ enum Commands {
     },
     /// Validate skills in source directory (check SKILL.md frontmatter)
     Validate,
+    /// Show where skills are installed (tracked instances)
+    Where {
+        /// Show instances for a specific skill (omit for all)
+        skill: Option<String>,
+        /// Scan all targets and register existing skill instances
+        #[arg(long)]
+        scan: bool,
+    },
     /// Manage configuration (show, add/remove targets, reset)
     Config {
         #[command(subcommand)]
@@ -175,6 +184,12 @@ fn main() -> Result<()> {
         } => add_skill(name, cli.user, cmd_force || force)?,
         Commands::Remove { name, yes } => remove_skill(name, cli.user, yes || force)?,
         Commands::Validate => validate_skills(cli.user)?,
+        Commands::Where { skill, scan } => {
+            if scan {
+                scan_existing_instances()?;
+            }
+            where_skills(skill.as_deref())?;
+        }
         Commands::Config { action } => config_command(action)?,
         Commands::Completions { shell } => {
             let mut cmd = Cli::command();
@@ -608,6 +623,43 @@ fn validate_skills(user_scope: bool) -> Result<()> {
     }
 
     validate::validate_skills(&source, &skills)
+}
+
+fn scan_existing_instances() -> Result<()> {
+    let tools = supported_tools();
+    let mut count = 0;
+
+    println!("Scanning targets for existing skill instances...\n");
+
+    for tool in &tools {
+        let path = config::expand_home(&tool.path);
+        if !path.exists() {
+            continue;
+        }
+
+        let skills = discover_skills(&path)?;
+        for skill_name in &skills {
+            let skill_path = path.join(skill_name);
+            registry::record(skill_name, &skill_path.to_string_lossy(), &tool.label)?;
+            count += 1;
+        }
+    }
+
+    if count == 0 {
+        println!("No existing skill instances found across targets.");
+    } else {
+        println!("Registered {} skill instance(s).\n", count);
+    }
+
+    Ok(())
+}
+
+fn where_skills(skill: Option<&str>) -> Result<()> {
+    match skill {
+        Some(name) => registry::where_skill(name)?,
+        None => registry::where_all()?,
+    }
+    Ok(())
 }
 
 fn config_command(action: ConfigAction) -> Result<()> {

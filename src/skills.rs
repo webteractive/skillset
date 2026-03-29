@@ -1,3 +1,4 @@
+use crate::registry;
 use anyhow::{Context, Result};
 use std::fs;
 use std::io::Write;
@@ -230,6 +231,7 @@ pub fn sync_skills(
                 match *user_policy {
                     OverwritePolicy::All => {
                         copy_skill(&skill_source, &skill_target)?;
+                        registry::record(skill_name, &skill_target.to_string_lossy(), label).ok();
                         println!("  Overwrote {} at {}", skill_name, label);
                     }
                     OverwritePolicy::PerSkill => {
@@ -247,11 +249,13 @@ pub fn sync_skills(
                         match input.as_str() {
                             "y" | "yes" => {
                                 copy_skill(&skill_source, &skill_target)?;
+                                registry::record(skill_name, &skill_target.to_string_lossy(), label).ok();
                                 println!("    Copied to {}", label);
                             }
                             "a" | "all" => {
                                 *user_policy = OverwritePolicy::All;
                                 copy_skill(&skill_source, &skill_target)?;
+                                registry::record(skill_name, &skill_target.to_string_lossy(), label).ok();
                                 println!("    Copied to {} (will overwrite rest)", label);
                             }
                             _ => {
@@ -262,6 +266,7 @@ pub fn sync_skills(
                 }
             } else {
                 copy_skill(&skill_source, &skill_target)?;
+                registry::record(skill_name, &skill_target.to_string_lossy(), label).ok();
                 println!("  Copied {} to {}", skill_name, label);
             }
         }
