@@ -62,10 +62,13 @@ cargo install --path .
 | `skillset install <owner/repo>` | Install skills from a GitHub repo |
 | `skillset add <name>` | Scaffold a new skill with template |
 | `skillset remove <name>` | Remove skill from targets (optionally from source) |
+| `skillset validate` | Check SKILL.md frontmatter for errors |
+| `skillset config <action>` | Manage configuration (show, add/remove targets, reset) |
+| `skillset completions <shell>` | Generate shell completions (bash, zsh, fish) |
 | `skillset self-update` | Update skillset to the latest version |
 | `skillset doc --agents-md` | Output AGENTS.md snippet |
 
-**Common flags:** `--user` / `-G` (user-level), `--sync` (with install), `--force` (skip all prompts)
+**Common flags:** `--user` / `-G` (user-level), `--sync` (with install), `--force` (skip all prompts), `--dry-run` (preview without changes)
 
 #### `install`
 
@@ -93,11 +96,43 @@ skillset install https://github.com/org/private-repo.git   # if using credential
 # Create and sync
 skillset add my-skill
 skillset sync
+
+# Preview what would happen
+skillset sync --dry-run
+skillset install webteractive/skills --dry-run
+
+# Show diff before overwriting
+skillset sync --diff
+
+# Filter skills
+skillset list --filter="test"
+skillset list --status=missing
+skillset list --status=synced
+
+# Validate skill frontmatter
+skillset validate
+
+# Shell completions
+skillset completions bash >> ~/.bashrc
+skillset completions zsh >> ~/.zshrc
+skillset completions fish > ~/.config/fish/completions/skillset.fish
 ```
 
 ---
 
 ## Configuration
+
+### CLI management
+
+```bash
+skillset config show                              # Pretty-print current config
+skillset config add-target "My Editor" ~/.myeditor/skills   # Add a target
+skillset config remove-target "My Editor"          # Remove a target
+skillset config reset                              # Restore defaults
+skillset config validate-paths                     # Check which target paths exist
+```
+
+### Manual editing
 
 Edit `~/.config/skillset/config.json`:
 
@@ -109,6 +144,45 @@ Edit `~/.config/skillset/config.json`:
 | `install.skill_dirs` | Dirs to search in repos (default: `[".claude/skills", "skills"]`) |
 
 See `config.example.json` for the full default config.
+
+---
+
+## Skill Validation
+
+`skillset validate` checks each SKILL.md for proper frontmatter:
+
+```bash
+$ skillset validate
+Validating 3 skill(s):
+
+  ✓ my-skill (author, version, tags)
+  ✗ bad-skill — missing 'description'
+  ✓ other-skill
+
+1 error(s) found.
+```
+
+Required fields: `name`, `description`. Optional: `author`, `version`, `tags`.
+
+### Extended metadata
+
+Skills can include optional metadata in their frontmatter:
+
+```yaml
+---
+name: my-skill
+description: Does something cool
+author: Glen
+version: 1.0.0
+tags: [testing, automation]
+---
+```
+
+---
+
+## Incremental Sync
+
+When syncing, skillset automatically skips skills whose SKILL.md is identical at the target. Only changed skills are copied. Use `--force` to copy everything regardless.
 
 ---
 

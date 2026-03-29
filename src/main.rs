@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
@@ -10,6 +11,7 @@ mod install;
 mod path;
 mod remove;
 mod skills;
+mod validate;
 
 use config::{config_path, load, supported_tools};
 use doc::agents_md_snippet;
@@ -32,6 +34,10 @@ struct Cli {
     #[arg(short = 'y', long, global = true, hide = true)]
     yes: bool,
 
+    /// Preview what would happen without making changes
+    #[arg(long, global = true)]
+    dry_run: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -43,9 +49,19 @@ enum Commands {
         /// Show the skills currently loaded for a specific tool (e.g., --tool=codex)
         #[arg(long)]
         tool: Option<String>,
+        /// Filter skills by name pattern
+        #[arg(long)]
+        filter: Option<String>,
+        /// Filter by sync status: synced, missing, or all
+        #[arg(long, default_value = "all")]
+        status: String,
     },
     /// Sync skills from source to configured targets
-    Sync,
+    Sync {
+        /// Show diff of SKILL.md before overwriting
+        #[arg(long)]
+        diff: bool,
+    },
     /// Install skills from a vendor/package (e.g., anthropics/skills)
     Install {
         /// Package spec in owner/repo format or full Git URL
@@ -79,6 +95,18 @@ enum Commands {
         #[arg(long)]
         yes: bool,
     },
+    /// Validate skills in source directory (check SKILL.md frontmatter)
+    Validate,
+    /// Manage configuration (show, add/remove targets, reset)
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+    /// Generate shell completions
+    Completions {
+        /// Shell to generate completions for
+        shell: Shell,
+    },
     /// Update skillset to the latest version
     #[command(name = "self-update")]
     SelfUpdate,
@@ -90,14 +118,41 @@ enum Commands {
     },
 }
 
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Show current configuration
+    Show,
+    /// Add a sync target
+    AddTarget {
+        /// Label for the target (e.g., "My Editor")
+        label: String,
+        /// Path to the skills directory (e.g., ~/.myeditor/skills)
+        path: String,
+    },
+    /// Remove a sync target by label
+    RemoveTarget {
+        /// Label of the target to remove
+        label: String,
+    },
+    /// Reset configuration to defaults
+    Reset,
+    /// Validate that configured target paths exist
+    ValidatePaths,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let force = cli.force || cli.yes;
+    let dry_run = cli.dry_run;
 
     match cli.command {
-        Commands::List { tool } => list_skills(cli.user, tool.as_deref())?,
-        Commands::Sync => sync_skills_cli(cli.user, force)?,
+        Commands::List {
+            tool,
+            filter,
+            status,
+        } => list_skills(cli.user, tool.as_deref(), filter.as_deref(), &status)?,
+        Commands::Sync { diff } => sync_skills_cli(cli.user, force, dry_run, diff)?,
         Commands::Install {
             package,
             skill,
@@ -112,9 +167,19 @@ fn main() -> Result<()> {
             force,
             dir.as_deref(),
             from_remote,
+            dry_run,
         )?,
-        Commands::Add { name, force: cmd_force } => add_skill(name, cli.user, cmd_force || force)?,
+        Commands::Add {
+            name,
+            force: cmd_force,
+        } => add_skill(name, cli.user, cmd_force || force)?,
         Commands::Remove { name, yes } => remove_skill(name, cli.user, yes || force)?,
+        Commands::Validate => validate_skills(cli.user)?,
+        Commands::Config { action } => config_command(action)?,
+        Commands::Completions { shell } => {
+            let mut cmd = Cli::command();
+            generate(shell, &mut cmd, "skillset", &mut std::io::stdout());
+        }
         Commands::SelfUpdate => self_update()?,
         Commands::Doc { agents_md } => doc_output(agents_md)?,
     }
@@ -122,7 +187,12 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn list_skills(user_scope: bool, tool: Option<&str>) -> Result<()> {
+fn list_skills(
+    user_scope: bool,
+    tool: Option<&str>,
+    filter: Option<&str>,
+    status: &str,
+) -> Result<()> {
     let config = load()?;
     let cwd = std::env::current_dir()?;
     let source = resolve_source(user_scope, &cwd, &config.source);
@@ -136,19 +206,34 @@ fn list_skills(user_scope: bool, tool: Option<&str>) -> Result<()> {
             list_skills_for_tool(tool_name, user_scope, &cwd)?;
         }
         None => {
-            list_skills_with_status(&config, &source)?;
+            list_skills_with_status(&config, &source, filter, status)?;
         }
     }
 
     Ok(())
 }
 
-fn list_skills_with_status(config: &config::Config, source: &Path) -> Result<()> {
-    let skills = discover_skills(source)?;
+fn list_skills_with_status(
+    config: &config::Config,
+    source: &Path,
+    filter: Option<&str>,
+    status_filter: &str,
+) -> Result<()> {
+    let mut skills = discover_skills(source)?;
 
     if skills.is_empty() {
         println!("No skills found in source directory.");
         return Ok(());
+    }
+
+    // Apply name filter
+    if let Some(pattern) = filter {
+        let pattern_lower = pattern.to_lowercase();
+        skills.retain(|s| s.to_lowercase().contains(&pattern_lower));
+        if skills.is_empty() {
+            println!("No skills matching '{}' found.", pattern);
+            return Ok(());
+        }
     }
 
     // Expand target paths
@@ -161,15 +246,29 @@ fn list_skills_with_status(config: &config::Config, source: &Path) -> Result<()>
     println!("Skills:");
     for skill in &skills {
         let mut statuses = Vec::new();
+        let mut synced_count = 0;
+        let total_targets = targets.len();
+
         for (label, target_path) in &targets {
             let skill_path = target_path.join(skill);
             if skill_path.exists() {
                 statuses.push(format!("{} ✓", label));
+                synced_count += 1;
             } else {
                 statuses.push(format!("{} —", label));
             }
         }
-        println!("  {}  {}", skill, statuses.join("  "));
+
+        // Apply status filter
+        let show = match status_filter {
+            "synced" => synced_count == total_targets,
+            "missing" => synced_count < total_targets,
+            _ => true,
+        };
+
+        if show {
+            println!("  {}  {}", skill, statuses.join("  "));
+        }
     }
 
     Ok(())
@@ -185,7 +284,7 @@ fn list_skills_for_tool(tool: &str, user_scope: bool, cwd: &Path) -> Result<()> 
 
     if matches.is_empty() {
         anyhow::bail!(
-            "Unknown tool '{}'. Try one of the supported tool names.",
+            "Unknown tool '{}'. Try one of the supported tool names.\nHint: Run `skillset list` to see all supported tools.",
             tool
         );
     }
@@ -211,7 +310,7 @@ fn list_skills_for_tool(tool: &str, user_scope: bool, cwd: &Path) -> Result<()> 
         println!("Path: {}", path.display());
 
         if !path.exists() {
-            println!("(directory not found)");
+            println!("(directory not found)\nHint: {} may not be installed yet, or the skills directory hasn't been created.", target.label);
             continue;
         }
 
@@ -233,7 +332,10 @@ fn list_skills_for_tool(tool: &str, user_scope: bool, cwd: &Path) -> Result<()> 
 
 /// Show a checkbox list of supported targets and return the subset the user selects.
 /// When --force is set or stdin is not a TTY, returns all targets without prompting.
-fn select_sync_targets(targets: &[(String, PathBuf)], force: bool) -> Result<Vec<(String, PathBuf)>> {
+fn select_sync_targets(
+    targets: &[(String, PathBuf)],
+    force: bool,
+) -> Result<Vec<(String, PathBuf)>> {
     if targets.is_empty() {
         return Ok(vec![]);
     }
@@ -304,13 +406,16 @@ fn sync_targets_for_scope(cwd: &std::path::Path, user_scope: bool) -> Vec<(Strin
         .collect()
 }
 
-fn sync_skills_cli(user_scope: bool, force: bool) -> Result<()> {
+fn sync_skills_cli(user_scope: bool, force: bool, dry_run: bool, show_diff: bool) -> Result<()> {
     let config = load()?;
     let cwd = std::env::current_dir()?;
     let source = resolve_source(user_scope, &cwd, &config.source);
 
     if !source.exists() {
-        anyhow::bail!("Source directory not found: {}", source.display());
+        anyhow::bail!(
+            "Source directory not found: {}\nHint: Run `skillset add <name>` to create your first skill, or `skillset install <package>` to install from a repo.",
+            source.display()
+        );
     }
 
     let scope_label = if user_scope {
@@ -318,21 +423,30 @@ fn sync_skills_cli(user_scope: bool, force: bool) -> Result<()> {
     } else {
         "workspace (cwd)"
     };
-    println!("Source: {} ({})", source.display(), scope_label);
+
+    if dry_run {
+        println!("[DRY RUN] Source: {} ({})", source.display(), scope_label);
+    } else {
+        println!("Source: {} ({})", source.display(), scope_label);
+    }
 
     let targets = sync_targets_for_scope(&cwd, user_scope);
-    let selected = select_sync_targets(&targets, force)?;
+    let selected = if dry_run {
+        targets.clone()
+    } else {
+        select_sync_targets(&targets, force)?
+    };
     if selected.is_empty() {
         println!("No targets selected. Nothing to sync.");
         return Ok(());
     }
 
-    let mut overwrite_policy = if force {
+    let mut overwrite_policy = if force || dry_run {
         OverwritePolicy::All
     } else {
         OverwritePolicy::PerSkill
     };
-    sync_skills(&source, &selected, &mut overwrite_policy)?;
+    sync_skills(&source, &selected, &mut overwrite_policy, dry_run, show_diff)?;
 
     Ok(())
 }
@@ -345,9 +459,32 @@ fn install_package(
     force: bool,
     dir: Option<&str>,
     from_remote: bool,
+    dry_run: bool,
 ) -> Result<()> {
     let config = load()?;
     let cwd = std::env::current_dir()?;
+
+    if dry_run {
+        println!("[DRY RUN] Would install from package: {}", package);
+        if let Some(s) = skill {
+            println!("[DRY RUN] Filtered to skill: {}", s);
+        }
+        let scope = if user_scope {
+            "user store"
+        } else {
+            "workspace"
+        };
+        println!("[DRY RUN] Target scope: {}", scope);
+        if do_sync {
+            let targets = sync_targets_for_scope(&cwd, user_scope);
+            println!("[DRY RUN] Would sync to {} target(s):", targets.len());
+            for (label, path) in &targets {
+                println!("[DRY RUN]   {} ({})", label, path.display());
+            }
+        }
+        println!("[DRY RUN] No changes made.");
+        return Ok(());
+    }
 
     // --sync: targets filtered by scope (workspace vs user)
     let targets = sync_targets_for_scope(&cwd, user_scope);
@@ -401,7 +538,7 @@ fn install_package(
         let source = resolve_source(user_scope, &cwd, &config.source);
         if !source.exists() {
             anyhow::bail!(
-                "Source directory not found: {} (cannot sync)",
+                "Source directory not found: {} (cannot sync)\nHint: The install may have failed or the source path is misconfigured.",
                 source.display()
             );
         }
@@ -416,7 +553,7 @@ fn install_package(
             } else {
                 OverwritePolicy::PerSkill
             };
-            sync_skills(&source, &selected, &mut overwrite_policy)?;
+            sync_skills(&source, &selected, &mut overwrite_policy, false, false)?;
         }
     }
 
@@ -452,16 +589,123 @@ fn remove_skill(name: String, user_scope: bool, yes: bool) -> Result<()> {
     Ok(())
 }
 
+fn validate_skills(user_scope: bool) -> Result<()> {
+    let config = load()?;
+    let cwd = std::env::current_dir()?;
+    let source = resolve_source(user_scope, &cwd, &config.source);
+
+    if !source.exists() {
+        anyhow::bail!(
+            "Source directory not found: {}\nHint: Run `skillset add <name>` to create your first skill.",
+            source.display()
+        );
+    }
+
+    let skills = discover_skills(&source)?;
+    if skills.is_empty() {
+        println!("No skills found in source directory.");
+        return Ok(());
+    }
+
+    validate::validate_skills(&source, &skills)
+}
+
+fn config_command(action: ConfigAction) -> Result<()> {
+    match action {
+        ConfigAction::Show => {
+            let config = load()?;
+            let path = config_path()?;
+            println!("Config file: {}\n", path.display());
+            println!("Source: {}\n", config.source);
+            println!("Install:");
+            println!("  use_ssh: {}", config.install.use_ssh);
+            println!("  skill_dirs: {}\n", config.install.skill_dirs.join(", "));
+            println!("Targets ({}):", config.targets.len());
+            for target in &config.targets {
+                let expanded = config::expand_home(&target.path);
+                let exists = expanded.exists();
+                let status = if exists { "✓" } else { "—" };
+                println!("  {} {} ({})", status, target.label, target.path);
+            }
+        }
+        ConfigAction::AddTarget { label, path } => {
+            let mut config = load()?;
+            // Check if label already exists
+            if config.targets.iter().any(|t| t.label == label) {
+                anyhow::bail!("Target '{}' already exists. Remove it first with `skillset config remove-target \"{}\"`.", label, label);
+            }
+            config.targets.push(config::Target {
+                label: label.clone(),
+                path: path.clone(),
+            });
+            config::save(&config)?;
+            println!("Added target: {} ({})", label, path);
+        }
+        ConfigAction::RemoveTarget { label } => {
+            let mut config = load()?;
+            let before = config.targets.len();
+            config.targets.retain(|t| t.label != label);
+            if config.targets.len() == before {
+                anyhow::bail!(
+                    "Target '{}' not found.\nHint: Run `skillset config show` to see configured targets.",
+                    label
+                );
+            }
+            config::save(&config)?;
+            println!("Removed target: {}", label);
+        }
+        ConfigAction::Reset => {
+            let config = config::Config {
+                source: ".skillset/skills".to_string(),
+                targets: supported_tools()
+                    .into_iter()
+                    .map(|t| config::Target {
+                        label: t.label,
+                        path: t.path,
+                    })
+                    .collect(),
+                install: config::InstallConfig::default(),
+            };
+            config::save(&config)?;
+            println!("Configuration reset to defaults.");
+        }
+        ConfigAction::ValidatePaths => {
+            let config = load()?;
+            println!("Checking target paths:\n");
+            let mut all_ok = true;
+            for target in &config.targets {
+                let expanded = config::expand_home(&target.path);
+                if expanded.exists() {
+                    println!("  ✓ {} — {}", target.label, expanded.display());
+                } else {
+                    println!(
+                        "  ✗ {} — {} (not found)",
+                        target.label,
+                        expanded.display()
+                    );
+                    all_ok = false;
+                }
+            }
+            if all_ok {
+                println!("\nAll target paths exist.");
+            } else {
+                println!("\nSome target paths are missing. These tools may not be installed yet.");
+            }
+        }
+    }
+    Ok(())
+}
+
 fn self_update() -> Result<()> {
     println!("Updating skillset to the latest version...");
     let status = std::process::Command::new("sh")
         .arg("-c")
         .arg("curl -sSL https://raw.githubusercontent.com/webteractive/skillset/main/install.sh | sh -s -- --download")
         .status()
-        .context("Failed to run install script")?;
+        .context("Failed to run install script.\nHint: Check your internet connection and try again.")?;
 
     if !status.success() {
-        anyhow::bail!("Self-update failed");
+        anyhow::bail!("Self-update failed.\nHint: Try running the install script manually: curl -sSL https://raw.githubusercontent.com/webteractive/skillset/main/install.sh | sh");
     }
 
     Ok(())

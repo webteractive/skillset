@@ -117,12 +117,62 @@ pub enum OverwritePolicy {
     All,
 }
 
+/// Check if a skill's content is identical between source and target by comparing SKILL.md.
+fn skill_unchanged(source: &Path, target: &Path) -> bool {
+    let source_md = source.join("SKILL.md");
+    let target_md = target.join("SKILL.md");
+
+    if !source_md.exists() || !target_md.exists() {
+        return false;
+    }
+
+    match (fs::read(&source_md), fs::read(&target_md)) {
+        (Ok(src), Ok(tgt)) => src == tgt,
+        _ => false,
+    }
+}
+
+/// Show a unified diff of two files using the `similar` crate.
+fn show_diff(source_path: &Path, target_path: &Path, skill_name: &str, label: &str) {
+    let source_content = fs::read_to_string(source_path).unwrap_or_default();
+    let target_content = fs::read_to_string(target_path).unwrap_or_default();
+
+    if source_content == target_content {
+        println!("    (no changes in SKILL.md for {} at {})", skill_name, label);
+        return;
+    }
+
+    use similar::{ChangeTag, TextDiff};
+    let diff = TextDiff::from_lines(&target_content, &source_content);
+
+    println!(
+        "    --- {}/{}/SKILL.md (target: {})",
+        label, skill_name, label
+    );
+    println!(
+        "    +++ {}/{}/SKILL.md (source)",
+        label, skill_name
+    );
+
+    for change in diff.iter_all_changes() {
+        let sign = match change.tag() {
+            ChangeTag::Delete => "-",
+            ChangeTag::Insert => "+",
+            ChangeTag::Equal => " ",
+        };
+        print!("    {}{}", sign, change);
+    }
+    println!();
+}
+
 /// Sync skills from source to multiple targets.
 /// Creates each target dir if it doesn't exist, then copies skills. Prompts when a skill already exists.
 pub fn sync_skills(
     source: &Path,
     targets: &[(String, PathBuf)],
     user_policy: &mut OverwritePolicy,
+    dry_run: bool,
+    show_diffs: bool,
 ) -> Result<()> {
     let skills = discover_skills(source)?;
 
@@ -131,9 +181,11 @@ pub fn sync_skills(
         return Ok(());
     }
 
-    // Ensure each target base dir exists (e.g. ~/.claude/skills, ~/.cursor/skills)
-    for (_, target_path) in targets {
-        fs::create_dir_all(target_path).context("Failed to create target directory")?;
+    if !dry_run {
+        // Ensure each target base dir exists (e.g. ~/.claude/skills, ~/.cursor/skills)
+        for (_, target_path) in targets {
+            fs::create_dir_all(target_path).context("Failed to create target directory")?;
+        }
     }
 
     println!("Found {} skill(s) to sync:", skills.len());
@@ -145,7 +197,36 @@ pub fn sync_skills(
             let skill_target = target_path.join(skill_name);
             let exists = skill_target.exists();
 
+            if dry_run {
+                if exists {
+                    println!("[DRY RUN]   Would overwrite {} at {}", skill_name, label);
+                    if show_diffs {
+                        let source_md = skill_source.join("SKILL.md");
+                        let target_md = skill_target.join("SKILL.md");
+                        if source_md.exists() && target_md.exists() {
+                            show_diff(&source_md, &target_md, skill_name, label);
+                        }
+                    }
+                } else {
+                    println!("[DRY RUN]   Would copy {} to {}", skill_name, label);
+                }
+                continue;
+            }
+
             if exists {
+                // Skip if content is unchanged
+                if skill_unchanged(&skill_source, &skill_target) {
+                    continue;
+                }
+
+                if show_diffs {
+                    let source_md = skill_source.join("SKILL.md");
+                    let target_md = skill_target.join("SKILL.md");
+                    if source_md.exists() && target_md.exists() {
+                        show_diff(&source_md, &target_md, skill_name, label);
+                    }
+                }
+
                 match *user_policy {
                     OverwritePolicy::All => {
                         copy_skill(&skill_source, &skill_target)?;
@@ -186,6 +267,10 @@ pub fn sync_skills(
         }
     }
 
-    println!("Sync complete.");
+    if dry_run {
+        println!("[DRY RUN] Sync complete. No changes were made.");
+    } else {
+        println!("Sync complete.");
+    }
     Ok(())
 }
