@@ -139,7 +139,10 @@ fn show_diff(source_path: &Path, target_path: &Path, skill_name: &str, label: &s
     let target_content = fs::read_to_string(target_path).unwrap_or_default();
 
     if source_content == target_content {
-        println!("    (no changes in SKILL.md for {} at {})", skill_name, label);
+        println!(
+            "    (no changes in SKILL.md for {} at {})",
+            skill_name, label
+        );
         return;
     }
 
@@ -150,10 +153,7 @@ fn show_diff(source_path: &Path, target_path: &Path, skill_name: &str, label: &s
         "    --- {}/{}/SKILL.md (target: {})",
         label, skill_name, label
     );
-    println!(
-        "    +++ {}/{}/SKILL.md (source)",
-        label, skill_name
-    );
+    println!("    +++ {}/{}/SKILL.md (source)", label, skill_name);
 
     for change in diff.iter_all_changes() {
         let sign = match change.tag() {
@@ -249,13 +249,23 @@ pub fn sync_skills(
                         match input.as_str() {
                             "y" | "yes" => {
                                 copy_skill(&skill_source, &skill_target)?;
-                                registry::record(skill_name, &skill_target.to_string_lossy(), label).ok();
+                                registry::record(
+                                    skill_name,
+                                    &skill_target.to_string_lossy(),
+                                    label,
+                                )
+                                .ok();
                                 println!("    Copied to {}", label);
                             }
                             "a" | "all" => {
                                 *user_policy = OverwritePolicy::All;
                                 copy_skill(&skill_source, &skill_target)?;
-                                registry::record(skill_name, &skill_target.to_string_lossy(), label).ok();
+                                registry::record(
+                                    skill_name,
+                                    &skill_target.to_string_lossy(),
+                                    label,
+                                )
+                                .ok();
                                 println!("    Copied to {} (will overwrite rest)", label);
                             }
                             _ => {

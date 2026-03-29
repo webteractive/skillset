@@ -76,8 +76,7 @@ pub fn save(registry: &Registry) -> Result<()> {
     let path = registry_path()?;
     let dir = path.parent().unwrap();
     fs::create_dir_all(dir).context("Failed to create registry directory")?;
-    let content =
-        serde_json::to_string_pretty(registry).context("Failed to serialize registry")?;
+    let content = serde_json::to_string_pretty(registry).context("Failed to serialize registry")?;
     fs::write(&path, content).context("Failed to write registry")?;
     Ok(())
 }
@@ -85,10 +84,7 @@ pub fn save(registry: &Registry) -> Result<()> {
 /// Record a skill instance after a successful sync/copy.
 pub fn record(skill_name: &str, path: &str, label: &str) -> Result<()> {
     let mut registry = load()?;
-    let instances = registry
-        .skills
-        .entry(skill_name.to_string())
-        .or_default();
+    let instances = registry.skills.entry(skill_name.to_string()).or_default();
 
     // Update existing entry for same path, or add new
     if let Some(existing) = instances.iter_mut().find(|i| i.path == path) {
@@ -142,7 +138,10 @@ pub fn where_all() -> Result<()> {
     for (skill_name, instances) in &registry.skills {
         println!("  {}:", skill_name);
         for inst in instances {
-            println!("    {} — {} (synced {})", inst.label, inst.path, inst.synced_at);
+            println!(
+                "    {} — {} (synced {})",
+                inst.label, inst.path, inst.synced_at
+            );
         }
     }
 
