@@ -461,11 +461,18 @@ fn sync_skills_cli(user_scope: bool, force: bool, dry_run: bool, show_diff: bool
     } else {
         OverwritePolicy::PerSkill
     };
-    sync_skills(&source, &selected, &mut overwrite_policy, dry_run, show_diff)?;
+    sync_skills(
+        &source,
+        &selected,
+        &mut overwrite_policy,
+        dry_run,
+        show_diff,
+    )?;
 
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn install_package(
     package: String,
     skill: Option<&str>,
@@ -730,11 +737,7 @@ fn config_command(action: ConfigAction) -> Result<()> {
                 if expanded.exists() {
                     println!("  ✓ {} — {}", target.label, expanded.display());
                 } else {
-                    println!(
-                        "  ✗ {} — {} (not found)",
-                        target.label,
-                        expanded.display()
-                    );
+                    println!("  ✗ {} — {} (not found)", target.label, expanded.display());
                     all_ok = false;
                 }
             }

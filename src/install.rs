@@ -128,6 +128,7 @@ pub fn find_skills_dir(repo_root: &Path, skill_dirs: &[String]) -> Result<PathBu
 /// - source_dir: if Some, copy to this path (e.g. cwd/.skillset/skills) as workspace source of truth
 /// - user_store_dir: if Some, copy to that path (user-level store, e.g. ~/.skillset/skills)
 /// - overwrite_all: if true, skip prompts and always overwrite when skill already exists
+#[allow(clippy::too_many_arguments)]
 pub fn install_package(
     spec: &str,
     skill_filter: Option<&str>,
