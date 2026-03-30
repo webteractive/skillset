@@ -36,7 +36,7 @@ pub struct InstallConfig {
 impl Default for InstallConfig {
     fn default() -> Self {
         Self {
-            use_ssh: false,
+            use_ssh: true,
             skill_dirs: default_skill_dirs(),
         }
     }

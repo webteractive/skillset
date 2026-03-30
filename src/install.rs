@@ -53,13 +53,12 @@ pub fn resolve_package(spec: &str, use_ssh: bool, from_remote: bool) -> Result<P
         let owner = parts[0];
         let repo = parts[1];
 
-        let url = if use_ssh {
-            format!("git@github.com:{}:{}.git", owner, repo)
-        } else {
-            format!("https://github.com/{}/{}.git", owner, repo)
-        };
+        let ssh_url = format!("git@github.com:{}/{}.git", owner, repo);
+        let https_url = format!("https://github.com/{}/{}.git", owner, repo);
 
-        (url, format!("{}-{}", owner, repo))
+        let url = if use_ssh { &ssh_url } else { &https_url };
+
+        (url.to_string(), format!("{}-{}", owner, repo))
     };
 
     let repo_dir = cache_dir.join(&repo_dir_name);
@@ -94,7 +93,31 @@ pub fn resolve_package(spec: &str, use_ssh: bool, from_remote: bool) -> Result<P
             .context("Failed to run git clone. Is git installed?")?;
 
         if !status.success() {
-            anyhow::bail!("Failed to clone repository: {}", spec);
+            // If the primary URL failed and spec is owner/repo, try the other protocol
+            if !is_git_url(spec) {
+                let fallback_url = if use_ssh {
+                    format!("https://github.com/{}.git", spec)
+                } else {
+                    format!("git@github.com:{}.git", spec)
+                };
+                let protocol = if use_ssh { "HTTPS" } else { "SSH" };
+                println!("Retrying with {}...", protocol);
+
+                let status = Command::new("git")
+                    .arg("clone")
+                    .arg("--depth")
+                    .arg("1")
+                    .arg(&fallback_url)
+                    .arg(&repo_dir)
+                    .status()
+                    .context("Failed to run git clone fallback")?;
+
+                if !status.success() {
+                    anyhow::bail!("Failed to clone repository: {}", spec);
+                }
+            } else {
+                anyhow::bail!("Failed to clone repository: {}", spec);
+            }
         }
 
         println!("Cloned to: {}", repo_dir.display());
