@@ -1,6 +1,6 @@
 [package]
 name = "skillset"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 description = "Manage and sync AI agent skills across multiple tools"
 license = "MIT"
