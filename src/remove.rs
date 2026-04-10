@@ -58,7 +58,9 @@ pub fn remove_skill(
     for (label, skill_path) in &targets_with_skill {
         fs::remove_dir_all(skill_path)
             .with_context(|| format!("Failed to remove skill '{}' from {}", name, label))?;
-        registry::remove_path(name, &skill_path.to_string_lossy()).ok();
+        if let Err(e) = registry::remove_path(name, &skill_path.to_string_lossy()) {
+            eprintln!("Warning: failed to update registry for '{}': {}", name, e);
+        }
         println!("  Removed {} from {}", name, label);
     }
 
@@ -73,7 +75,9 @@ pub fn remove_skill(
     }
 
     // Clean up registry
-    registry::remove_skill(name).ok();
+    if let Err(e) = registry::remove_skill(name) {
+        eprintln!("Warning: failed to clean up registry for '{}': {}", name, e);
+    }
 
     println!("Remove complete.");
     Ok(())

@@ -26,13 +26,18 @@ fn read_cache() -> Option<(String, SystemTime)> {
 fn write_cache(version: &str) {
     if let Some(path) = cache_path() {
         if let Some(dir) = path.parent() {
-            let _ = fs::create_dir_all(dir);
+            if let Err(e) = fs::create_dir_all(dir) {
+                eprintln!("Warning: could not create version cache directory: {}", e);
+                return;
+            }
         }
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        let _ = fs::write(&path, format!("{}\n{}", version, now));
+        if let Err(e) = fs::write(&path, format!("{}\n{}", version, now)) {
+            eprintln!("Warning: could not write version cache: {}", e);
+        }
     }
 }
 

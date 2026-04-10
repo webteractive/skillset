@@ -5,9 +5,9 @@ use std::path::{Path, PathBuf};
 /// If user_scope is false, use cwd.join(config_source) (workspace).
 pub fn resolve_source(user_scope: bool, cwd: &Path, config_source: &str) -> PathBuf {
     if user_scope {
-        if let Ok(home) = std::env::var("HOME") {
-            return PathBuf::from(home).join(config_source);
-        }
+        let home = std::env::var("HOME")
+            .expect("HOME environment variable is not set. Cannot use --user scope.");
+        return PathBuf::from(home).join(config_source);
     }
     cwd.join(config_source)
 }

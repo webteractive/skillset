@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-04-10
+
+### Fixed
+
+- **Self-update version detection:** Replaced silent failure chain with explicit error handling — no more false "Update complete" when the update didn't work.
+- **Self-update curl reliability:** Downloads install script to temp file instead of piping (`curl | sh`), so network failures actually surface.
+- **Self-update temp file security:** Uses `mktemp` instead of predictable `/tmp` path to prevent symlink attacks.
+- **Registry error handling:** Registry write failures now warn to stderr instead of being silently swallowed via `.ok()`.
+- **Corrupted registry recovery:** Malformed `registry.json` now warns and preserves the original file instead of silently overwriting it with empty data.
+- **User scope without HOME:** `--user` flag now fails with a clear error when `HOME` is not set, instead of silently falling back to workspace scope.
+- **Version cache writes:** `version_check` warns on write failures instead of silently discarding errors (which caused re-fetching from GitHub on every command).
+- **Diff display:** `show_diff` warns on file read errors instead of showing misleading empty-file diffs.
+- **Skill discovery:** Warns on non-UTF-8 directory names instead of silently dropping valid skills.
+- **install.sh API curl:** Added `-f` flag so HTTP errors (rate limiting, 404) fail instead of producing garbage version strings.
+
+### Changed
+
+- **Release script rewrite:** `release.sh` now accepts `patch|minor|major` instead of raw version tags. Auto-bumps `Cargo.toml`, commits, tags, builds, and releases.
+- **Release script safety:** Added dirty-tree guard, version validation, post-sed verification, portable sed, atomic git push, push failure recovery instructions, and smarter `gh release` error handling.
+
 ## [0.1.6] - 2026-02-04
 
 ### Added
@@ -80,6 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - macOS and Linux only. Windows is not supported.
 
+[0.2.3]: https://github.com/webteractive/skillset/releases/tag/v0.2.3
 [0.1.5]: https://github.com/webteractive/skillset/releases/tag/v0.1.5
 [0.1.4]: https://github.com/webteractive/skillset/releases/tag/v0.1.4
 [0.1.3]: https://github.com/webteractive/skillset/releases/tag/v0.1.3

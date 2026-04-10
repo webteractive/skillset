@@ -44,8 +44,17 @@ pub fn load() -> Result<Registry> {
     }
 
     let content = fs::read_to_string(&path).context("Failed to read registry")?;
-    let mut registry: Registry =
-        serde_json::from_str(&content).unwrap_or_else(|_| Registry::default());
+    let mut registry: Registry = match serde_json::from_str(&content) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!(
+                "Warning: registry.json is malformed ({}). Starting with empty registry.",
+                e
+            );
+            eprintln!("  The original file is at: {}", path.display());
+            return Ok(Registry::default());
+        }
+    };
 
     // Clean stale entries (paths that no longer exist)
     let mut changed = false;

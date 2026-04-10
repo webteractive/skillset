@@ -758,15 +758,87 @@ fn config_command(action: ConfigAction) -> Result<()> {
 }
 
 fn self_update() -> Result<()> {
-    println!("Updating skillset to the latest version...");
+    let current = env!("CARGO_PKG_VERSION");
+    println!("Current version: {}", current);
+    println!("Downloading latest release...");
+
+    // Download to temp file first, then execute — avoids curl failures being masked by pipe
+    let script_url =
+        "https://raw.githubusercontent.com/webteractive/skillset/main/install.sh";
     let status = std::process::Command::new("sh")
         .arg("-c")
-        .arg("curl -sSL https://raw.githubusercontent.com/webteractive/skillset/main/install.sh | sh -s -- --download")
+        .arg(format!(
+            "set -e; TMPF=\"$(mktemp)\" && curl -sSLf '{}' -o \"$TMPF\" && sh \"$TMPF\" --download; rm -f \"$TMPF\"",
+            script_url
+        ))
         .status()
         .context("Failed to run install script.\nHint: Check your internet connection and try again.")?;
 
     if !status.success() {
-        anyhow::bail!("Self-update failed.\nHint: Try running the install script manually: curl -sSL https://raw.githubusercontent.com/webteractive/skillset/main/install.sh | sh");
+        anyhow::bail!("Self-update failed.\nHint: Try running the install script manually:\n  curl -sSLf {} | sh -s -- --download", script_url);
+    }
+
+    // Find the installed binary
+    let which_output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg("which skillset")
+        .output()
+        .context("Failed to locate installed binary via `which skillset`")?;
+
+    if !which_output.status.success() {
+        eprintln!("Warning: `which skillset` failed. The binary may not be on your PATH.");
+        println!("Update downloaded but could not verify installation. Restart your shell and run `skillset --version` to confirm.");
+        return Ok(());
+    }
+
+    let path = String::from_utf8(which_output.stdout)
+        .context("Invalid UTF-8 in `which skillset` output")?
+        .trim()
+        .to_string();
+
+    let version_output = std::process::Command::new(&path)
+        .arg("--version")
+        .output()
+        .with_context(|| format!("Failed to run `{} --version`", path))?;
+
+    if !version_output.status.success() {
+        eprintln!(
+            "Warning: `{} --version` exited with {}",
+            path, version_output.status
+        );
+        println!("Update may have completed but could not verify the installed version.");
+        return Ok(());
+    }
+
+    let version_line = String::from_utf8(version_output.stdout)
+        .context("Invalid UTF-8 in --version output")?;
+    let installed = version_line
+        .trim()
+        .strip_prefix("skillset ")
+        .unwrap_or(version_line.trim());
+
+    // Sanity check: version should start with a digit
+    if !installed
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_digit())
+    {
+        eprintln!(
+            "Warning: unexpected --version output: {}",
+            version_line.trim()
+        );
+        println!("Update may have completed. Run `skillset --version` to verify.");
+        return Ok(());
+    }
+
+    if installed == current {
+        println!(
+            "\nInstalled version is still {}. The release binary may not have been updated.",
+            current
+        );
+        println!("Check https://github.com/webteractive/skillset/releases for details.");
+    } else {
+        println!("\nUpdated: {} → {}", current, installed);
     }
 
     Ok(())

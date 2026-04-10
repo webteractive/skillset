@@ -21,7 +21,7 @@ if [ "${1:-}" = "--download" ] || [ "${1:-}" = "-d" ]; then
     arm64|aarch64) ARCH="aarch64" ;;
   esac
   ASSET="skillset-${OS}-${ARCH}"
-  LATEST="$(curl -sSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
+  LATEST="$(curl -sSLf "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
   if [ -z "$LATEST" ]; then
     echo "Could not find latest release. Check https://github.com/${REPO}/releases"
     exit 1
