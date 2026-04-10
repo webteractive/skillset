@@ -224,7 +224,7 @@ cargo run -- list
 cargo test
 ```
 
-**Releasing:** Update CHANGELOG, bump version in `Cargo.toml`, run `cargo fmt` / `cargo clippy -- -D warnings` / `cargo test`, then `./release.sh v0.x.x`.
+**Releasing:** Update CHANGELOG, run `cargo fmt` / `cargo clippy -- -D warnings` / `cargo test`, then `./release.sh patch|minor|major` — the script bumps `Cargo.toml`, commits, tags, builds, and creates the GitHub release automatically.
 
 ---
 

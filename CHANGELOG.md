@@ -25,6 +25,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Release script rewrite:** `release.sh` now accepts `patch|minor|major` instead of raw version tags. Auto-bumps `Cargo.toml`, commits, tags, builds, and releases.
 - **Release script safety:** Added dirty-tree guard, version validation, post-sed verification, portable sed, atomic git push, push failure recovery instructions, and smarter `gh release` error handling.
 
+## [0.2.2] - 2026-03-31
+
+### Changed
+
+- **Default to SSH for git clone:** `owner/repo` installs now try SSH first, falling back to HTTPS on failure. Configurable via `install.use_ssh`.
+
+## [0.2.1] - 2026-03-29
+
+### Added
+
+- **Version check notification:** npm-style update notice shown in interactive terminals when a newer release is available. Checks GitHub API at most once every 24 hours, cached locally.
+
+## [0.2.0] - 2026-03-29
+
+### Added
+
+- **`skillset self-update`** command to update to the latest release.
+- **`skillset where`** command with registry tracking — shows where each skill is synced across targets. `--scan` to register existing instances.
+- **`skillset validate`** command to check SKILL.md frontmatter for required fields.
+- **`skillset config`** command to manage configuration (show, add/remove targets, reset, validate-paths).
+- **`skillset completions`** for bash, zsh, and fish shell completions.
+- **`--force`** flag to skip all interactive prompts during sync/install.
+- **`--from-remote`** flag on install to pull latest from cached repos.
+- **`--dry-run`** flag for sync and install to preview changes without writing.
+- **`--diff`** flag for sync to show unified diffs before overwriting.
+- **`--filter`** and **`--status`** flags for list to filter skills by name or sync status.
+- **Incremental sync** — skips skills where SKILL.md is byte-identical at source and target.
+
 ## [0.1.6] - 2026-02-04
 
 ### Added
@@ -101,6 +129,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - macOS and Linux only. Windows is not supported.
 
 [0.2.3]: https://github.com/webteractive/skillset/releases/tag/v0.2.3
+[0.2.2]: https://github.com/webteractive/skillset/releases/tag/v0.2.2
+[0.2.1]: https://github.com/webteractive/skillset/releases/tag/v0.2.1
+[0.2.0]: https://github.com/webteractive/skillset/releases/tag/v0.2.0
+[0.1.6]: https://github.com/webteractive/skillset/releases/tag/v0.1.6
 [0.1.5]: https://github.com/webteractive/skillset/releases/tag/v0.1.5
 [0.1.4]: https://github.com/webteractive/skillset/releases/tag/v0.1.4
 [0.1.3]: https://github.com/webteractive/skillset/releases/tag/v0.1.3
