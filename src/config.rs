@@ -66,6 +66,10 @@ pub fn supported_tools() -> Vec<Target> {
             path: "~/.agents/skills".to_string(),
         },
         Target {
+            label: "Codex Home".to_string(),
+            path: "~/.codex/skills".to_string(),
+        },
+        Target {
             label: "OpenCode".to_string(),
             path: "~/.opencode/skills".to_string(),
         },
@@ -121,24 +125,69 @@ pub fn load() -> Result<Config> {
         save(&config)?;
     }
 
-    let mut migrated = false;
-    for target in &mut config.targets {
-        if target.label == "Codex" && is_legacy_codex_path(&target.path) {
-            target.path = "~/.agents/skills".to_string();
-            migrated = true;
-        }
-    }
-    if migrated {
+    if ensure_codex_targets(&mut config.targets) {
         save(&config)?;
     }
 
     Ok(config)
 }
 
-fn is_legacy_codex_path(path: &str) -> bool {
+fn ensure_codex_targets(targets: &mut Vec<Target>) -> bool {
+    let mut changed = false;
+
+    for target in targets.iter_mut() {
+        if is_codex_home_path(&target.path) {
+            if target.label == "Codex" {
+                target.label = "Codex Home".to_string();
+                changed = true;
+            }
+            if target.path != "~/.codex/skills" {
+                target.path = "~/.codex/skills".to_string();
+                changed = true;
+            }
+        }
+
+        if is_codex_agents_path(&target.path) && target.path != "~/.agents/skills" {
+            target.path = "~/.agents/skills".to_string();
+            changed = true;
+        }
+    }
+
+    let has_codex_agents = targets
+        .iter()
+        .any(|target| is_codex_agents_path(&target.path));
+    if !has_codex_agents {
+        targets.push(Target {
+            label: "Codex".to_string(),
+            path: "~/.agents/skills".to_string(),
+        });
+        changed = true;
+    }
+
+    let has_codex_home = targets
+        .iter()
+        .any(|target| is_codex_home_path(&target.path));
+    if !has_codex_home {
+        targets.push(Target {
+            label: "Codex Home".to_string(),
+            path: "~/.codex/skills".to_string(),
+        });
+        changed = true;
+    }
+
+    changed
+}
+
+fn is_codex_home_path(path: &str) -> bool {
     path == "~/.codex/skills"
         || path.ends_with("/.codex/skills")
         || path.ends_with("\\.codex\\skills")
+}
+
+fn is_codex_agents_path(path: &str) -> bool {
+    path == "~/.agents/skills"
+        || path.ends_with("/.agents/skills")
+        || path.ends_with("\\.agents\\skills")
 }
 
 pub fn save(config: &Config) -> Result<()> {
@@ -178,12 +227,13 @@ mod tests {
     #[test]
     fn test_supported_tools_returns_all_tools() {
         let tools = supported_tools();
-        assert_eq!(tools.len(), 8, "supported_tools should return 8 tools");
+        assert_eq!(tools.len(), 9, "supported_tools should return 9 tools");
         let labels: Vec<&str> = tools.iter().map(|t| t.label.as_str()).collect();
         assert!(labels.contains(&"Cursor"));
         assert!(labels.contains(&"Claude Code"));
         assert!(labels.contains(&"Gemini"));
         assert!(labels.contains(&"Codex"));
+        assert!(labels.contains(&"Codex Home"));
         assert!(labels.contains(&"GitHub Copilot (project)"));
         assert!(labels.contains(&"GitHub Copilot (personal)"));
 
@@ -192,6 +242,11 @@ mod tests {
             .find(|target| target.label == "Codex")
             .expect("Codex target should be present");
         assert_eq!(codex.path, "~/.agents/skills");
+        let codex_home = tools
+            .iter()
+            .find(|target| target.label == "Codex Home")
+            .expect("Codex Home target should be present");
+        assert_eq!(codex_home.path, "~/.codex/skills");
     }
 
     #[test]
@@ -199,7 +254,7 @@ mod tests {
         let tools = supported_tools();
         let user_level: Vec<_> = tools.iter().filter(|t| t.path.starts_with("~/")).collect();
         let workspace_level: Vec<_> = tools.iter().filter(|t| !t.path.starts_with("~/")).collect();
-        assert_eq!(user_level.len(), 7, "7 tools use user-level paths (~/...)");
+        assert_eq!(user_level.len(), 8, "8 tools use user-level paths (~/...)");
         assert_eq!(
             workspace_level.len(),
             1,
@@ -222,10 +277,47 @@ mod tests {
     }
 
     #[test]
-    fn test_legacy_codex_path_detection() {
-        assert!(is_legacy_codex_path("~/.codex/skills"));
-        assert!(is_legacy_codex_path("/Users/example/.codex/skills"));
-        assert!(is_legacy_codex_path("C:\\Users\\example\\.codex\\skills"));
-        assert!(!is_legacy_codex_path("~/.agents/skills"));
+    fn test_codex_path_detection() {
+        assert!(is_codex_home_path("~/.codex/skills"));
+        assert!(is_codex_home_path("/Users/example/.codex/skills"));
+        assert!(is_codex_home_path("C:\\Users\\example\\.codex\\skills"));
+        assert!(!is_codex_home_path("~/.agents/skills"));
+
+        assert!(is_codex_agents_path("~/.agents/skills"));
+        assert!(is_codex_agents_path("/Users/example/.agents/skills"));
+        assert!(is_codex_agents_path("C:\\Users\\example\\.agents\\skills"));
+        assert!(!is_codex_agents_path("~/.codex/skills"));
+    }
+
+    #[test]
+    fn test_ensure_codex_targets_adds_both_locations() {
+        let mut targets = vec![Target {
+            label: "Cursor".to_string(),
+            path: "~/.cursor/skills".to_string(),
+        }];
+
+        assert!(ensure_codex_targets(&mut targets));
+        assert!(targets
+            .iter()
+            .any(|target| target.label == "Codex" && target.path == "~/.agents/skills"));
+        assert!(targets
+            .iter()
+            .any(|target| target.label == "Codex Home" && target.path == "~/.codex/skills"));
+    }
+
+    #[test]
+    fn test_ensure_codex_targets_preserves_legacy_codex_home() {
+        let mut targets = vec![Target {
+            label: "Codex".to_string(),
+            path: "/Users/example/.codex/skills".to_string(),
+        }];
+
+        assert!(ensure_codex_targets(&mut targets));
+        assert!(targets
+            .iter()
+            .any(|target| target.label == "Codex Home" && target.path == "~/.codex/skills"));
+        assert!(targets
+            .iter()
+            .any(|target| target.label == "Codex" && target.path == "~/.agents/skills"));
     }
 }

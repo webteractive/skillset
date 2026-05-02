@@ -44,9 +44,13 @@ mod tests {
     use super::*;
     use std::fs;
 
+    fn unique_tmp(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("skillset_test_{}_{}", name, std::process::id()))
+    }
+
     #[test]
     fn test_discover_skills_finds_subdir_with_skill_md() {
-        let tmp = std::env::temp_dir().join("skillset_test_discover");
+        let tmp = unique_tmp("discover");
         let _ = fs::remove_dir_all(&tmp);
         let skill_dir = tmp.join("my-skill");
         fs::create_dir_all(&skill_dir).unwrap();
@@ -58,7 +62,7 @@ mod tests {
 
     #[test]
     fn test_discover_skills_ignores_subdir_without_skill_md() {
-        let tmp = std::env::temp_dir().join("skillset_test_discover_no_md");
+        let tmp = unique_tmp("discover_no_md");
         let _ = fs::remove_dir_all(&tmp);
         let skill_dir = tmp.join("not-a-skill");
         fs::create_dir_all(&skill_dir).unwrap();
@@ -70,11 +74,59 @@ mod tests {
 
     #[test]
     fn test_discover_skills_empty_dir_returns_empty() {
-        let tmp = std::env::temp_dir().join("skillset_test_discover_empty");
+        let tmp = unique_tmp("discover_empty");
         fs::create_dir_all(&tmp).unwrap();
         let skills = discover_skills(&tmp).unwrap();
         fs::remove_dir_all(&tmp).ok();
         assert!(skills.is_empty());
+    }
+
+    #[test]
+    fn test_symlink_skill_creates_directory_symlink() {
+        let tmp = unique_tmp("symlink_skill");
+        let _ = fs::remove_dir_all(&tmp);
+        let source = tmp.join("source").join("my-skill");
+        let target = tmp.join("target").join("my-skill");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("SKILL.md"), "# My Skill").unwrap();
+
+        symlink_skill(&source, &target).unwrap();
+
+        assert!(target.join("SKILL.md").exists());
+        assert!(fs::symlink_metadata(&target)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert!(skill_target_unchanged(
+            &source,
+            &target,
+            SyncMethod::Symlink
+        ));
+        assert!(!skill_target_unchanged(&source, &target, SyncMethod::Copy));
+
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn test_copy_skill_replaces_directory_symlink_with_copy() {
+        let tmp = unique_tmp("copy_replaces_symlink");
+        let _ = fs::remove_dir_all(&tmp);
+        let source = tmp.join("source").join("my-skill");
+        let target = tmp.join("target").join("my-skill");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("SKILL.md"), "# My Skill").unwrap();
+        symlink_skill(&source, &target).unwrap();
+
+        copy_skill(&source, &target).unwrap();
+
+        assert!(target.join("SKILL.md").exists());
+        assert!(!fs::symlink_metadata(&target)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert!(skill_target_unchanged(&source, &target, SyncMethod::Copy));
+
+        fs::remove_dir_all(&tmp).ok();
     }
 }
 
@@ -85,15 +137,53 @@ pub fn copy_skill(from: &Path, to: &Path) -> Result<()> {
         anyhow::bail!("Source skill directory does not exist: {}", from.display());
     }
 
-    if to.exists() {
-        fs::remove_dir_all(to).context("Failed to remove existing target directory")?;
-    }
+    remove_existing_path(to).context("Failed to remove existing target directory")?;
 
     fs::create_dir_all(to.parent().unwrap()).context("Failed to create parent directory")?;
 
     copy_dir_recursive(from, to).context("Failed to copy skill directory")?;
 
     Ok(())
+}
+
+/// Symlink an entire skill directory from source to target.
+/// Creates parent directories if needed and overwrites existing files.
+pub fn symlink_skill(from: &Path, to: &Path) -> Result<()> {
+    if !from.exists() {
+        anyhow::bail!("Source skill directory does not exist: {}", from.display());
+    }
+
+    remove_existing_path(to).context("Failed to remove existing target directory")?;
+    fs::create_dir_all(to.parent().unwrap()).context("Failed to create parent directory")?;
+    create_dir_symlink(from, to).context("Failed to symlink skill directory")?;
+
+    Ok(())
+}
+
+fn remove_existing_path(path: &Path) -> Result<()> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error).context("Failed to inspect existing target"),
+    };
+
+    if metadata.file_type().is_symlink() || metadata.is_file() {
+        fs::remove_file(path).context("Failed to remove existing file or symlink")?;
+    } else {
+        fs::remove_dir_all(path).context("Failed to remove existing directory")?;
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn create_dir_symlink(from: &Path, to: &Path) -> Result<()> {
+    std::os::unix::fs::symlink(from, to).context("Failed to create directory symlink")
+}
+
+#[cfg(windows)]
+fn create_dir_symlink(from: &Path, to: &Path) -> Result<()> {
+    std::os::windows::fs::symlink_dir(from, to).context("Failed to create directory symlink")
 }
 
 /// Recursively copy a directory.
@@ -122,8 +212,45 @@ pub enum OverwritePolicy {
     All,
 }
 
+/// How skills should be written to target directories.
+#[derive(Debug, Clone, Copy)]
+pub enum SyncMethod {
+    Copy,
+    Symlink,
+}
+
+impl SyncMethod {
+    fn action(self) -> &'static str {
+        match self {
+            SyncMethod::Copy => "copy",
+            SyncMethod::Symlink => "symlink",
+        }
+    }
+
+    fn past_tense(self) -> &'static str {
+        match self {
+            SyncMethod::Copy => "Copied",
+            SyncMethod::Symlink => "Symlinked",
+        }
+    }
+
+    fn overwrite_tense(self) -> &'static str {
+        match self {
+            SyncMethod::Copy => "Overwrote",
+            SyncMethod::Symlink => "Re-symlinked",
+        }
+    }
+}
+
 /// Check if a skill's content is identical between source and target by comparing SKILL.md.
 fn skill_unchanged(source: &Path, target: &Path) -> bool {
+    if fs::symlink_metadata(target)
+        .map(|metadata| metadata.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return false;
+    }
+
     let source_md = source.join("SKILL.md");
     let target_md = target.join("SKILL.md");
 
@@ -134,6 +261,50 @@ fn skill_unchanged(source: &Path, target: &Path) -> bool {
     match (fs::read(&source_md), fs::read(&target_md)) {
         (Ok(src), Ok(tgt)) => src == tgt,
         _ => false,
+    }
+}
+
+fn skill_symlink_unchanged(source: &Path, target: &Path) -> bool {
+    let metadata = match fs::symlink_metadata(target) {
+        Ok(metadata) => metadata,
+        Err(_) => return false,
+    };
+
+    if !metadata.file_type().is_symlink() {
+        return false;
+    }
+
+    let target_link = match fs::read_link(target) {
+        Ok(path) => path,
+        Err(_) => return false,
+    };
+
+    let resolved_target = if target_link.is_absolute() {
+        target_link
+    } else {
+        target
+            .parent()
+            .map(|parent| parent.join(&target_link))
+            .unwrap_or(target_link)
+    };
+
+    match (source.canonicalize(), resolved_target.canonicalize()) {
+        (Ok(source), Ok(target)) => source == target,
+        _ => false,
+    }
+}
+
+fn skill_target_unchanged(source: &Path, target: &Path, method: SyncMethod) -> bool {
+    match method {
+        SyncMethod::Copy => skill_unchanged(source, target),
+        SyncMethod::Symlink => skill_symlink_unchanged(source, target),
+    }
+}
+
+fn write_skill(source: &Path, target: &Path, method: SyncMethod) -> Result<()> {
+    match method {
+        SyncMethod::Copy => copy_skill(source, target),
+        SyncMethod::Symlink => symlink_skill(source, target),
     }
 }
 
@@ -190,6 +361,7 @@ pub fn sync_skills(
     user_policy: &mut OverwritePolicy,
     dry_run: bool,
     show_diffs: bool,
+    method: SyncMethod,
 ) -> Result<()> {
     let skills = discover_skills(source)?;
 
@@ -216,7 +388,12 @@ pub fn sync_skills(
 
             if dry_run {
                 if exists {
-                    println!("[DRY RUN]   Would overwrite {} at {}", skill_name, label);
+                    println!(
+                        "[DRY RUN]   Would {} {} at {}",
+                        method.action(),
+                        skill_name,
+                        label
+                    );
                     if show_diffs {
                         let source_md = skill_source.join("SKILL.md");
                         let target_md = skill_target.join("SKILL.md");
@@ -225,14 +402,19 @@ pub fn sync_skills(
                         }
                     }
                 } else {
-                    println!("[DRY RUN]   Would copy {} to {}", skill_name, label);
+                    println!(
+                        "[DRY RUN]   Would {} {} to {}",
+                        method.action(),
+                        skill_name,
+                        label
+                    );
                 }
                 continue;
             }
 
             if exists {
-                // Skip if content is unchanged
-                if skill_unchanged(&skill_source, &skill_target) {
+                // Skip if target already matches the selected sync method.
+                if skill_target_unchanged(&skill_source, &skill_target, method) {
                     continue;
                 }
 
@@ -246,7 +428,7 @@ pub fn sync_skills(
 
                 match *user_policy {
                     OverwritePolicy::All => {
-                        copy_skill(&skill_source, &skill_target)?;
+                        write_skill(&skill_source, &skill_target, method)?;
                         if let Err(e) =
                             registry::record(skill_name, &skill_target.to_string_lossy(), label)
                         {
@@ -255,12 +437,14 @@ pub fn sync_skills(
                                 skill_name, e
                             );
                         }
-                        println!("  Overwrote {} at {}", skill_name, label);
+                        println!("  {} {} at {}", method.overwrite_tense(), skill_name, label);
                     }
                     OverwritePolicy::PerSkill => {
                         print!(
-                            "  Skill '{}' already exists at {}. Overwrite? [y/n/all] ",
-                            skill_name, label
+                            "  Skill '{}' already exists at {}. {}? [y/n/all] ",
+                            skill_name,
+                            label,
+                            method.overwrite_tense()
                         );
                         std::io::stdout().flush().context("Flush stdout")?;
                         let mut input = String::new();
@@ -271,7 +455,7 @@ pub fn sync_skills(
 
                         match input.as_str() {
                             "y" | "yes" => {
-                                copy_skill(&skill_source, &skill_target)?;
+                                write_skill(&skill_source, &skill_target, method)?;
                                 if let Err(e) = registry::record(
                                     skill_name,
                                     &skill_target.to_string_lossy(),
@@ -282,11 +466,11 @@ pub fn sync_skills(
                                         skill_name, e
                                     );
                                 }
-                                println!("    Copied to {}", label);
+                                println!("    {} to {}", method.past_tense(), label);
                             }
                             "a" | "all" => {
                                 *user_policy = OverwritePolicy::All;
-                                copy_skill(&skill_source, &skill_target)?;
+                                write_skill(&skill_source, &skill_target, method)?;
                                 if let Err(e) = registry::record(
                                     skill_name,
                                     &skill_target.to_string_lossy(),
@@ -297,7 +481,11 @@ pub fn sync_skills(
                                         skill_name, e
                                     );
                                 }
-                                println!("    Copied to {} (will overwrite rest)", label);
+                                println!(
+                                    "    {} to {} (will overwrite rest)",
+                                    method.past_tense(),
+                                    label
+                                );
                             }
                             _ => {
                                 println!("    Skipped {}", label);
@@ -306,7 +494,7 @@ pub fn sync_skills(
                     }
                 }
             } else {
-                copy_skill(&skill_source, &skill_target)?;
+                write_skill(&skill_source, &skill_target, method)?;
                 if let Err(e) = registry::record(skill_name, &skill_target.to_string_lossy(), label)
                 {
                     eprintln!(
@@ -314,7 +502,7 @@ pub fn sync_skills(
                         skill_name, e
                     );
                 }
-                println!("  Copied {} to {}", skill_name, label);
+                println!("  {} {} to {}", method.past_tense(), skill_name, label);
             }
         }
     }

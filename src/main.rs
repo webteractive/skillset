@@ -18,7 +18,7 @@ mod version_check;
 use config::{config_path, load, supported_tools};
 use doc::agents_md_snippet;
 use path::resolve_source;
-use skills::{discover_skills, sync_skills, OverwritePolicy};
+use skills::{discover_skills, sync_skills, OverwritePolicy, SyncMethod};
 
 #[derive(Parser)]
 #[command(name = "skillset", version)]
@@ -63,6 +63,23 @@ enum Commands {
         /// Show diff of SKILL.md before overwriting
         #[arg(long)]
         diff: bool,
+        /// Symlink skills into targets instead of copying them
+        #[arg(long)]
+        symlink: bool,
+    },
+    /// Convert configured target skills to symlinks pointing at the source
+    #[command(name = "migrate-to-symlinked")]
+    MigrateToSymlinked {
+        /// Show diff of SKILL.md before overwriting
+        #[arg(long)]
+        diff: bool,
+    },
+    /// Convert configured target skills back to copied directories
+    #[command(name = "migrate-to-copy")]
+    MigrateToCopy {
+        /// Show diff of SKILL.md before overwriting
+        #[arg(long)]
+        diff: bool,
     },
     /// Install skills from a local path, owner/repo package, or full Git URL
     Install {
@@ -74,6 +91,9 @@ enum Commands {
         /// After installing, sync skills from source to configured targets
         #[arg(long)]
         sync: bool,
+        /// With --sync, symlink skills into targets instead of copying them
+        #[arg(long)]
+        symlink: bool,
         /// Comma-separated dirs to look for skills in (e.g., .cursor/skills,.claude/skills,skills)
         #[arg(long)]
         dir: Option<String>,
@@ -163,13 +183,30 @@ fn main() -> Result<()> {
             filter,
             status,
         } => list_skills(cli.user, tool.as_deref(), filter.as_deref(), &status)?,
-        Commands::Sync { diff } => sync_skills_cli(cli.user, force, dry_run, diff)?,
+        Commands::Sync { diff, symlink } => sync_skills_cli(
+            cli.user,
+            force,
+            dry_run,
+            diff,
+            if symlink {
+                SyncMethod::Symlink
+            } else {
+                SyncMethod::Copy
+            },
+        )?,
+        Commands::MigrateToSymlinked { diff } => {
+            sync_skills_cli(cli.user, force, dry_run, diff, SyncMethod::Symlink)?
+        }
+        Commands::MigrateToCopy { diff } => {
+            sync_skills_cli(cli.user, force, dry_run, diff, SyncMethod::Copy)?
+        }
         Commands::Install {
             package,
             skill,
             sync,
             dir,
             from_remote,
+            symlink,
         } => install_package(
             package,
             skill.as_deref(),
@@ -179,6 +216,11 @@ fn main() -> Result<()> {
             dir.as_deref(),
             from_remote,
             dry_run,
+            if symlink {
+                SyncMethod::Symlink
+            } else {
+                SyncMethod::Copy
+            },
         )?,
         Commands::Add {
             name,
@@ -366,8 +408,8 @@ fn select_sync_targets(
         .iter()
         .map(|(label, path)| format!("{}  ({})", label, path.display()))
         .collect();
-    // Preselect Cursor, Claude Code, Gemini, Codex
-    const PRESELECTED: &[&str] = &["Cursor", "Claude Code", "Gemini", "Codex"];
+    // Preselect common interactive targets.
+    const PRESELECTED: &[&str] = &["Cursor", "Claude Code", "Gemini", "Codex", "Codex Home"];
     let default_selected: Vec<bool> = targets
         .iter()
         .map(|(label, _)| PRESELECTED.contains(&label.as_str()))
@@ -440,7 +482,13 @@ fn target_path_for_scope(
     }
 }
 
-fn sync_skills_cli(user_scope: bool, force: bool, dry_run: bool, show_diff: bool) -> Result<()> {
+fn sync_skills_cli(
+    user_scope: bool,
+    force: bool,
+    dry_run: bool,
+    show_diff: bool,
+    method: SyncMethod,
+) -> Result<()> {
     let config = load()?;
     let cwd = std::env::current_dir()?;
     let source = resolve_source(user_scope, &cwd, &config.source);
@@ -463,6 +511,7 @@ fn sync_skills_cli(user_scope: bool, force: bool, dry_run: bool, show_diff: bool
     } else {
         println!("Source: {} ({})", source.display(), scope_label);
     }
+    println!("Method: {:?}", method);
 
     let targets = targets_for_scope(&config.targets, &cwd, user_scope);
     let selected = if dry_run {
@@ -486,6 +535,7 @@ fn sync_skills_cli(user_scope: bool, force: bool, dry_run: bool, show_diff: bool
         &mut overwrite_policy,
         dry_run,
         show_diff,
+        method,
     )?;
 
     Ok(())
@@ -501,6 +551,7 @@ fn install_package(
     dir: Option<&str>,
     from_remote: bool,
     dry_run: bool,
+    sync_method: SyncMethod,
 ) -> Result<()> {
     let config = load()?;
     let cwd = std::env::current_dir()?;
@@ -522,6 +573,7 @@ fn install_package(
             for (label, path) in &targets {
                 println!("[DRY RUN]   {} ({})", label, path.display());
             }
+            println!("[DRY RUN] Sync method: {:?}", sync_method);
         }
         println!("[DRY RUN] No changes made.");
         return Ok(());
@@ -594,7 +646,14 @@ fn install_package(
             } else {
                 OverwritePolicy::PerSkill
             };
-            sync_skills(&source, &selected, &mut overwrite_policy, false, false)?;
+            sync_skills(
+                &source,
+                &selected,
+                &mut overwrite_policy,
+                false,
+                false,
+                sync_method,
+            )?;
         }
     }
 

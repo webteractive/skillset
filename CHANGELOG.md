@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `sync --symlink` to symlink skills into configured targets instead of copying directories.
+- `migrate-to-symlinked` and `migrate-to-copy` commands to convert configured target installs between symlinked and copied directories.
+
+### Fixed
+
+- Codex sync targets now include both `~/.agents/skills` and `~/.codex/skills` so skills load across Codex runtimes that read either location.
+- Existing `~/.codex/skills` targets are preserved as `Codex Home` instead of being migrated away to `~/.agents/skills`.
+
 ## [0.2.6] - 2026-05-02
 
 ### Fixed
