@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Release workflow now uses current macOS Intel runner and Node 24-compatible action versions.
+
 ## [0.2.5] - 2026-05-02
 
 ### Added
