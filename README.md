@@ -63,7 +63,7 @@ cargo install --path .
 | `skillset migrate-to-symlinked` | Convert target skills to symlinks pointing at source |
 | `skillset migrate-to-copy` | Convert target skills back to copied directories |
 | `skillset add <name>` | Scaffold a new skill with template |
-| `skillset remove <name>` | Remove skill from targets (optionally from source) |
+| `skillset remove <name>` | Remove a source-managed skill from source and matching targets |
 | `skillset validate` | Check SKILL.md frontmatter for errors |
 | `skillset where [skill]` | Show where skills are installed (tracked instances) |
 | `skillset config <action>` | Manage configuration (show, add/remove targets, reset) |
@@ -215,6 +215,8 @@ tags: [testing, automation]
 When syncing in copy mode, skillset automatically skips skills whose SKILL.md is identical at the target. In symlink mode, it skips targets that already point at the source skill directory. Use `--force` to skip prompts when a target needs to be rewritten.
 
 Use `skillset sync --symlink` to place directory symlinks in configured targets instead of copying skill directories. This keeps target skills live-linked to the source of truth. Use `skillset migrate-to-symlinked` to convert existing copied target skills to symlinks, and `skillset migrate-to-copy` to convert symlinks back into real copied directories.
+
+`skillset remove <name>` only removes skills that exist in the active source (`.skillset/skills` or `~/.skillset/skills`). Target skills are removed only when they point to that source skill or match its `SKILL.md`, so independently installed same-named target skills are left alone.
 
 ---
 

@@ -673,13 +673,9 @@ fn remove_skill(name: String, user_scope: bool, yes: bool) -> Result<()> {
     let cwd = std::env::current_dir()?;
 
     let targets = targets_for_scope(&config.targets, &cwd, user_scope);
+    let source = resolve_source(user_scope, &cwd, &config.source);
 
-    let user_source = if user_scope {
-        Some(resolve_source(true, &cwd, &config.source))
-    } else {
-        None
-    };
-    remove::remove_skill(&name, &targets, user_source.as_deref(), yes)?;
+    remove::remove_skill(&name, &targets, &source, yes)?;
 
     Ok(())
 }

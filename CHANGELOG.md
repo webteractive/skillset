@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Codex sync targets now include both `~/.agents/skills` and `~/.codex/skills` so skills load across Codex runtimes that read either location.
 - Existing `~/.codex/skills` targets are preserved as `Codex Home` instead of being migrated away to `~/.agents/skills`.
+- `remove` now only deletes skills managed by the active `.skillset` source and skips same-named target skills that do not match that source.
 
 ## [0.2.6] - 2026-05-02
 
