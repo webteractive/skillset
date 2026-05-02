@@ -142,22 +142,14 @@ fn show_diff(source_path: &Path, target_path: &Path, skill_name: &str, label: &s
     let source_content = match fs::read_to_string(source_path) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!(
-                "Warning: could not read {}: {}",
-                source_path.display(),
-                e
-            );
+            eprintln!("Warning: could not read {}: {}", source_path.display(), e);
             return;
         }
     };
     let target_content = match fs::read_to_string(target_path) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!(
-                "Warning: could not read {}: {}",
-                target_path.display(),
-                e
-            );
+            eprintln!("Warning: could not read {}: {}", target_path.display(), e);
             return;
         }
     };
@@ -255,8 +247,13 @@ pub fn sync_skills(
                 match *user_policy {
                     OverwritePolicy::All => {
                         copy_skill(&skill_source, &skill_target)?;
-                        if let Err(e) = registry::record(skill_name, &skill_target.to_string_lossy(), label) {
-                            eprintln!("Warning: failed to update registry for '{}': {}", skill_name, e);
+                        if let Err(e) =
+                            registry::record(skill_name, &skill_target.to_string_lossy(), label)
+                        {
+                            eprintln!(
+                                "Warning: failed to update registry for '{}': {}",
+                                skill_name, e
+                            );
                         }
                         println!("  Overwrote {} at {}", skill_name, label);
                     }
@@ -280,7 +277,10 @@ pub fn sync_skills(
                                     &skill_target.to_string_lossy(),
                                     label,
                                 ) {
-                                    eprintln!("Warning: failed to update registry for '{}': {}", skill_name, e);
+                                    eprintln!(
+                                        "Warning: failed to update registry for '{}': {}",
+                                        skill_name, e
+                                    );
                                 }
                                 println!("    Copied to {}", label);
                             }
@@ -292,7 +292,10 @@ pub fn sync_skills(
                                     &skill_target.to_string_lossy(),
                                     label,
                                 ) {
-                                    eprintln!("Warning: failed to update registry for '{}': {}", skill_name, e);
+                                    eprintln!(
+                                        "Warning: failed to update registry for '{}': {}",
+                                        skill_name, e
+                                    );
                                 }
                                 println!("    Copied to {} (will overwrite rest)", label);
                             }
@@ -304,8 +307,12 @@ pub fn sync_skills(
                 }
             } else {
                 copy_skill(&skill_source, &skill_target)?;
-                if let Err(e) = registry::record(skill_name, &skill_target.to_string_lossy(), label) {
-                    eprintln!("Warning: failed to update registry for '{}': {}", skill_name, e);
+                if let Err(e) = registry::record(skill_name, &skill_target.to_string_lossy(), label)
+                {
+                    eprintln!(
+                        "Warning: failed to update registry for '{}': {}",
+                        skill_name, e
+                    );
                 }
                 println!("  Copied {} to {}", skill_name, label);
             }

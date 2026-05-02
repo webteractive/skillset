@@ -224,10 +224,10 @@ fn list_skills(
 
     match tool {
         Some(tool_name) => {
-            list_skills_for_tool(tool_name, user_scope, &cwd)?;
+            list_skills_for_tool(&config, tool_name, user_scope, &cwd)?;
         }
         None => {
-            list_skills_with_status(&config, &source, filter, status)?;
+            list_skills_with_status(&config, &source, user_scope, &cwd, filter, status)?;
         }
     }
 
@@ -237,6 +237,8 @@ fn list_skills(
 fn list_skills_with_status(
     config: &config::Config,
     source: &Path,
+    user_scope: bool,
+    cwd: &Path,
     filter: Option<&str>,
     status_filter: &str,
 ) -> Result<()> {
@@ -257,12 +259,7 @@ fn list_skills_with_status(
         }
     }
 
-    // Expand target paths
-    let targets: Vec<(String, PathBuf)> = config
-        .targets
-        .iter()
-        .map(|t| (t.label.clone(), config::expand_home(&t.path)))
-        .collect();
+    let targets = targets_for_scope(&config.targets, cwd, user_scope);
 
     println!("Skills:");
     for skill in &skills {
@@ -295,11 +292,16 @@ fn list_skills_with_status(
     Ok(())
 }
 
-fn list_skills_for_tool(tool: &str, user_scope: bool, cwd: &Path) -> Result<()> {
-    let tool_targets = supported_tools();
+fn list_skills_for_tool(
+    config: &config::Config,
+    tool: &str,
+    user_scope: bool,
+    cwd: &Path,
+) -> Result<()> {
     let tool_lower = tool.to_lowercase();
-    let mut matches = tool_targets
-        .into_iter()
+    let mut matches = config
+        .targets
+        .iter()
         .filter(|t| t.label.to_lowercase().contains(&tool_lower))
         .collect::<Vec<_>>();
 
@@ -322,11 +324,7 @@ fn list_skills_for_tool(tool: &str, user_scope: bool, cwd: &Path) -> Result<()> 
     }
 
     for target in matches {
-        let path = if user_scope || target.path.starts_with("~/") {
-            config::expand_home(&target.path)
-        } else {
-            cwd.join(target.path.strip_prefix("~/").unwrap_or(&target.path))
-        };
+        let path = target_path_for_scope(target, cwd, user_scope);
         println!("Tool: {}", target.label);
         println!("Path: {}", path.display());
 
@@ -399,12 +397,16 @@ fn select_sync_targets(
     Ok(selected)
 }
 
-/// All supported tools with path chosen by scope so we never write to the wrong level.
-/// Without --user (workspace): same tools, paths under cwd (e.g. .cursor/skills, .github/skills).
-/// With --user: tools that have ~/ paths, expanded to home (e.g. ~/.cursor/skills).
-fn sync_targets_for_scope(cwd: &std::path::Path, user_scope: bool) -> Vec<(String, PathBuf)> {
-    supported_tools()
-        .into_iter()
+/// Configured target paths chosen by scope so we never write to the wrong level.
+/// Without --user, default user-style paths are translated under cwd (e.g. ~/.agents/skills -> ./.agents/skills).
+/// With --user, user-style paths are expanded to home (e.g. ~/.agents/skills -> $HOME/.agents/skills).
+fn targets_for_scope(
+    targets: &[config::Target],
+    cwd: &std::path::Path,
+    user_scope: bool,
+) -> Vec<(String, PathBuf)> {
+    targets
+        .iter()
         .filter(|t| {
             // User scope: only tools that have a user-level path. Workspace scope: include all.
             if user_scope {
@@ -413,18 +415,29 @@ fn sync_targets_for_scope(cwd: &std::path::Path, user_scope: bool) -> Vec<(Strin
                 true
             }
         })
-        .map(|t| {
-            let path = if user_scope {
-                config::expand_home(&t.path)
-            } else if t.path.starts_with("~/") {
-                // Workspace: ~/.cursor/skills -> cwd/.cursor/skills
-                cwd.join(t.path.strip_prefix("~/").unwrap())
-            } else {
-                cwd.join(&t.path)
-            };
-            (t.label, path)
-        })
+        .map(|t| (t.label.clone(), target_path_for_scope(t, cwd, user_scope)))
         .collect()
+}
+
+fn target_path_for_scope(
+    target: &config::Target,
+    cwd: &std::path::Path,
+    user_scope: bool,
+) -> PathBuf {
+    if user_scope {
+        return config::expand_home(&target.path);
+    }
+
+    if let Some(stripped) = target.path.strip_prefix("~/") {
+        return cwd.join(stripped);
+    }
+
+    let path = PathBuf::from(&target.path);
+    if path.is_absolute() {
+        path
+    } else {
+        cwd.join(path)
+    }
 }
 
 fn sync_skills_cli(user_scope: bool, force: bool, dry_run: bool, show_diff: bool) -> Result<()> {
@@ -451,7 +464,7 @@ fn sync_skills_cli(user_scope: bool, force: bool, dry_run: bool, show_diff: bool
         println!("Source: {} ({})", source.display(), scope_label);
     }
 
-    let targets = sync_targets_for_scope(&cwd, user_scope);
+    let targets = targets_for_scope(&config.targets, &cwd, user_scope);
     let selected = if dry_run {
         targets.clone()
     } else {
@@ -504,7 +517,7 @@ fn install_package(
         };
         println!("[DRY RUN] Target scope: {}", scope);
         if do_sync {
-            let targets = sync_targets_for_scope(&cwd, user_scope);
+            let targets = targets_for_scope(&config.targets, &cwd, user_scope);
             println!("[DRY RUN] Would sync to {} target(s):", targets.len());
             for (label, path) in &targets {
                 println!("[DRY RUN]   {} ({})", label, path.display());
@@ -515,7 +528,7 @@ fn install_package(
     }
 
     // --sync: targets filtered by scope (workspace vs user)
-    let targets = sync_targets_for_scope(&cwd, user_scope);
+    let targets = targets_for_scope(&config.targets, &cwd, user_scope);
 
     // Without --user: install to workspace source (cwd/.skillset/skills). With --user: to ~/.skillset/skills only.
     let source_dir = if user_scope {
@@ -600,12 +613,7 @@ fn remove_skill(name: String, user_scope: bool, yes: bool) -> Result<()> {
     let config = load()?;
     let cwd = std::env::current_dir()?;
 
-    // Expand target paths
-    let targets: Vec<(String, PathBuf)> = config
-        .targets
-        .iter()
-        .map(|t| (t.label.clone(), config::expand_home(&t.path)))
-        .collect();
+    let targets = targets_for_scope(&config.targets, &cwd, user_scope);
 
     let user_source = if user_scope {
         Some(resolve_source(true, &cwd, &config.source))
@@ -763,8 +771,7 @@ fn self_update() -> Result<()> {
     println!("Downloading latest release...");
 
     // Download to temp file first, then execute — avoids curl failures being masked by pipe
-    let script_url =
-        "https://raw.githubusercontent.com/webteractive/skillset/main/install.sh";
+    let script_url = "https://raw.githubusercontent.com/webteractive/skillset/main/install.sh";
     let status = std::process::Command::new("sh")
         .arg("-c")
         .arg(format!(
@@ -810,19 +817,15 @@ fn self_update() -> Result<()> {
         return Ok(());
     }
 
-    let version_line = String::from_utf8(version_output.stdout)
-        .context("Invalid UTF-8 in --version output")?;
+    let version_line =
+        String::from_utf8(version_output.stdout).context("Invalid UTF-8 in --version output")?;
     let installed = version_line
         .trim()
         .strip_prefix("skillset ")
         .unwrap_or(version_line.trim());
 
     // Sanity check: version should start with a digit
-    if !installed
-        .chars()
-        .next()
-        .is_some_and(|c| c.is_ascii_digit())
-    {
+    if !installed.chars().next().is_some_and(|c| c.is_ascii_digit()) {
         eprintln!(
             "Warning: unexpected --version output: {}",
             version_line.trim()

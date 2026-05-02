@@ -90,8 +90,7 @@ pub fn check_and_notify() {
         if let Ok(elapsed) = SystemTime::now().duration_since(last_check) {
             if elapsed < CHECK_INTERVAL {
                 // Cache is fresh — show notice if outdated, then return
-                if cached_version != current_version && cached_version.as_str() > current_version
-                {
+                if cached_version != current_version && cached_version.as_str() > current_version {
                     print_update_notice(current_version, &cached_version);
                 }
                 return;

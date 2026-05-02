@@ -123,7 +123,7 @@ pub fn load() -> Result<Config> {
 
     let mut migrated = false;
     for target in &mut config.targets {
-        if target.label == "Codex" && target.path == "~/.codex/skills" {
+        if target.label == "Codex" && is_legacy_codex_path(&target.path) {
             target.path = "~/.agents/skills".to_string();
             migrated = true;
         }
@@ -133,6 +133,12 @@ pub fn load() -> Result<Config> {
     }
 
     Ok(config)
+}
+
+fn is_legacy_codex_path(path: &str) -> bool {
+    path == "~/.codex/skills"
+        || path.ends_with("/.codex/skills")
+        || path.ends_with("\\.codex\\skills")
 }
 
 pub fn save(config: &Config) -> Result<()> {
@@ -213,5 +219,13 @@ mod tests {
             expand_home("/absolute/path"),
             PathBuf::from("/absolute/path")
         );
+    }
+
+    #[test]
+    fn test_legacy_codex_path_detection() {
+        assert!(is_legacy_codex_path("~/.codex/skills"));
+        assert!(is_legacy_codex_path("/Users/example/.codex/skills"));
+        assert!(is_legacy_codex_path("C:\\Users\\example\\.codex\\skills"));
+        assert!(!is_legacy_codex_path("~/.agents/skills"));
     }
 }
