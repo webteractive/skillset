@@ -7,10 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-05-02
+
 ### Added
 
 - GitHub Actions CI for formatting, Clippy, and tests.
 - GitHub Actions release workflow that publishes Linux and macOS binaries for `v*.*.*` tags.
+- Local path support for `skillset install`, including repo roots, skills directories, and single skill directories.
 
 ### Removed
 
@@ -146,6 +149,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - macOS and Linux only. Windows is not supported.
 
+[Unreleased]: https://github.com/webteractive/skillset/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/webteractive/skillset/releases/tag/v0.2.5
 [0.2.4]: https://github.com/webteractive/skillset/releases/tag/v0.2.4
 [0.2.3]: https://github.com/webteractive/skillset/releases/tag/v0.2.3
 [0.2.2]: https://github.com/webteractive/skillset/releases/tag/v0.2.2

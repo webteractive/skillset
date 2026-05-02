@@ -59,7 +59,7 @@ cargo install --path .
 |---------|-------------|
 | `skillset list` | Show skills and their status per target |
 | `skillset sync` | Copy skills from source to selected targets |
-| `skillset install <owner/repo>` | Install skills from a GitHub repo |
+| `skillset install <path-or-package>` | Install skills from a local path or GitHub repo |
 | `skillset add <name>` | Scaffold a new skill with template |
 | `skillset remove <name>` | Remove skill from targets (optionally from source) |
 | `skillset validate` | Check SKILL.md frontmatter for errors |
@@ -73,8 +73,9 @@ cargo install --path .
 
 #### `install`
 
-Install skills from a GitHub repo. Package format: `owner/repo` (HTTPS by default) or a full Git URL. Skillset clones via git, so **if you can `git clone` a repo, you can install from it**—no extra auth. Your existing SSH keys, credential helper, or PAT in the URL all work as usual.
+Install skills from a local path or GitHub repo. Package format can be a local directory, `owner/repo` (HTTPS by default), or a full Git URL. Local paths can point to a repo root, a skills directory containing skill subdirectories, or a single skill directory containing `SKILL.md`. Remote packages clone via git, so **if you can `git clone` a repo, you can install from it**—no extra auth. Your existing SSH keys, credential helper, or PAT in the URL all work as usual.
 
+- **Local paths:** `skillset install ../my-skills` or `skillset install ~/skills/my-skill`
 - **Public repos:** `skillset install owner/repo`
 - **Private repos:** Use the same URL you’d use for `git clone`. With SSH keys set up, `git@github.com:org/private-repo.git` works. Or `https://github.com/org/private-repo.git` if you use a credential helper or PAT. Set `install.use_ssh: true` in config to make `owner/repo` resolve to SSH by default.
 
@@ -85,7 +86,9 @@ Install skills from a GitHub repo. Package format: `owner/repo` (HTTPS by defaul
 skillset list              # Workspace .skillset/skills
 skillset list --user       # User-level ~/.skillset/skills
 
-# Install from repos (find more at https://skills.sh)
+# Install from local paths or repos (find more at https://skills.sh)
+skillset install ../my-skills
+skillset install ~/skills/my-skill
 skillset install webteractive/skillset
 skillset install anthropics/skills --skill=frontend-design
 skillset install org/repo --sync --user
@@ -231,7 +234,7 @@ cargo test
 ## Requirements
 
 - **Rust 1.70+** (when building from source)
-- **git** (for `skillset install`)
+- **git** (for remote `skillset install` packages)
 - macOS, Linux, or WSL 2
 
 ## License

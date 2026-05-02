@@ -14,6 +14,31 @@ fn is_git_url(spec: &str) -> bool {
         || spec.starts_with("ssh://")
 }
 
+/// Expand a leading ~/ in a local path spec.
+fn expand_home_path(spec: &str) -> PathBuf {
+    if spec == "~" {
+        if let Some(home) = dirs::home_dir() {
+            return home;
+        }
+    }
+
+    if let Some(rest) = spec.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(rest);
+        }
+    }
+
+    PathBuf::from(spec)
+}
+
+fn is_path_like(spec: &str) -> bool {
+    spec == "~"
+        || spec.starts_with("~/")
+        || spec.starts_with("./")
+        || spec.starts_with("../")
+        || spec.starts_with('/')
+}
+
 /// Generate a stable cache directory name from a URL hash
 fn cache_dir_name_from_url(url: &str) -> String {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -21,14 +46,40 @@ fn cache_dir_name_from_url(url: &str) -> String {
     format!("url-{:016x}", hasher.finish())
 }
 
-/// Resolve a vendor/package spec to a local path via git clone.
+/// Resolve a vendor/package spec to a local path.
 ///
 /// Format:
+///   - Local path to a repo, skills directory, or single skill directory
 ///   - owner/repo (e.g., anthropics/skills) - uses GitHub
 ///   - Full Git URL (e.g., git@github.com:anthropics/skills.git, https://github.com/anthropics/skills.git)
 ///
 /// The use_ssh flag determines whether owner/repo format uses SSH or HTTPS URLs.
 pub fn resolve_package(spec: &str, use_ssh: bool, from_remote: bool) -> Result<PathBuf> {
+    let local_path = expand_home_path(spec);
+    if local_path.exists() {
+        if !local_path.is_dir() {
+            anyhow::bail!(
+                "Local package path is not a directory: {}",
+                local_path.display()
+            );
+        }
+
+        if from_remote {
+            eprintln!("Warning: --from-remote is ignored for local path installs.");
+        }
+
+        return local_path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve local path: {}", local_path.display()));
+    }
+
+    if is_path_like(spec) {
+        anyhow::bail!(
+            "Local package path does not exist: {}",
+            local_path.display()
+        );
+    }
+
     // Determine cache directory
     let cache_dir = dirs::cache_dir()
         .context("Failed to determine cache directory")?
@@ -45,7 +96,7 @@ pub fn resolve_package(spec: &str, use_ssh: bool, from_remote: bool) -> Result<P
         let parts: Vec<&str> = spec.split('/').collect();
         if parts.len() != 2 {
             anyhow::bail!(
-                "Invalid package spec '{}'. Expected format: owner/repo or full Git URL",
+                "Invalid package spec '{}'. Expected format: local path, owner/repo, or full Git URL",
                 spec
             );
         }
@@ -126,22 +177,55 @@ pub fn resolve_package(spec: &str, use_ssh: bool, from_remote: bool) -> Result<P
     Ok(repo_dir)
 }
 
-/// Find the skills directory within a repository root.
-/// Checks each dir in skill_dirs in order; uses first that exists and contains skills.
-pub fn find_skills_dir(repo_root: &Path, skill_dirs: &[String]) -> Result<PathBuf> {
+/// Find installable skills within a package root.
+///
+/// Supports:
+/// - A direct single skill directory containing SKILL.md
+/// - A direct skills directory containing skill subdirectories
+/// - A repository root containing one of the configured skill_dirs
+pub fn find_installable_skills(
+    package_root: &Path,
+    skill_dirs: &[String],
+) -> Result<(PathBuf, Vec<String>)> {
+    if package_root.join("SKILL.md").is_file() {
+        let parent = package_root.parent().with_context(|| {
+            format!(
+                "Could not determine parent directory for skill: {}",
+                package_root.display()
+            )
+        })?;
+        let name = package_root
+            .file_name()
+            .and_then(|name| name.to_str())
+            .with_context(|| {
+                format!(
+                    "Could not determine skill name from path: {}",
+                    package_root.display()
+                )
+            })?;
+
+        return Ok((parent.to_path_buf(), vec![name.to_string()]));
+    }
+
+    let direct_skills = discover_skills(package_root)?;
+    if !direct_skills.is_empty() {
+        return Ok((package_root.to_path_buf(), direct_skills));
+    }
+
     for dir in skill_dirs {
-        let path = repo_root.join(dir);
+        let path = package_root.join(dir);
         if path.exists() {
-            if discover_skills(&path)?.is_empty() {
+            let skills = discover_skills(&path)?;
+            if skills.is_empty() {
                 anyhow::bail!("{} exists but contains no skills", dir);
             }
-            return Ok(path);
+            return Ok((path, skills));
         }
     }
 
     let checked = skill_dirs.join(", ");
     anyhow::bail!(
-        "No skills directory found in repository (checked {})",
+        "No skills found in package (checked package root and {})",
         checked
     );
 }
@@ -163,13 +247,8 @@ pub fn install_package(
     from_remote: bool,
 ) -> Result<()> {
     // Resolve package
-    let repo_dir = resolve_package(spec, use_ssh, from_remote)?;
-    let skills_dir = find_skills_dir(&repo_dir, skill_dirs)?;
-    let all_skills = discover_skills(&skills_dir)?;
-
-    if all_skills.is_empty() {
-        anyhow::bail!("No skills found in package");
-    }
+    let package_dir = resolve_package(spec, use_ssh, from_remote)?;
+    let (skills_dir, all_skills) = find_installable_skills(&package_dir, skill_dirs)?;
 
     // Filter by skill name if specified
     let skills_to_install: Vec<String> = if let Some(filter) = skill_filter {
@@ -275,4 +354,84 @@ pub fn install_package(
 
     println!("Install complete.");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("skillset_install_test_{}_{}", name, nonce))
+    }
+
+    #[test]
+    fn local_package_path_resolves_without_git() {
+        let tmp = temp_dir("resolve_local");
+        fs::create_dir_all(&tmp).unwrap();
+
+        let resolved = resolve_package(tmp.to_str().unwrap(), true, false).unwrap();
+
+        fs::remove_dir_all(&tmp).ok();
+        assert!(resolved.is_absolute());
+    }
+
+    #[test]
+    fn missing_path_like_package_errors_as_local_path() {
+        let missing = temp_dir("missing_path").join("missing");
+        let error = resolve_package(missing.to_str().unwrap(), true, false).unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("Local package path does not exist"));
+    }
+
+    #[test]
+    fn local_single_skill_dir_is_installable() {
+        let tmp = temp_dir("single_skill");
+        let skill = tmp.join("my-skill");
+        fs::create_dir_all(&skill).unwrap();
+        fs::write(skill.join("SKILL.md"), "# My Skill").unwrap();
+
+        let (skills_dir, skills) = find_installable_skills(&skill, &[]).unwrap();
+
+        fs::remove_dir_all(&tmp).ok();
+        assert_eq!(skills_dir.file_name().unwrap(), tmp.file_name().unwrap());
+        assert_eq!(skills, vec!["my-skill"]);
+    }
+
+    #[test]
+    fn local_skills_dir_is_installable() {
+        let tmp = temp_dir("skills_dir");
+        let skill = tmp.join("my-skill");
+        fs::create_dir_all(&skill).unwrap();
+        fs::write(skill.join("SKILL.md"), "# My Skill").unwrap();
+
+        let (skills_dir, skills) = find_installable_skills(&tmp, &[]).unwrap();
+
+        fs::remove_dir_all(&tmp).ok();
+        assert_eq!(skills_dir.file_name().unwrap(), tmp.file_name().unwrap());
+        assert_eq!(skills, vec!["my-skill"]);
+    }
+
+    #[test]
+    fn local_repo_root_uses_configured_skill_dirs() {
+        let tmp = temp_dir("repo_root");
+        let skill = tmp.join("skills").join("my-skill");
+        fs::create_dir_all(&skill).unwrap();
+        fs::write(skill.join("SKILL.md"), "# My Skill").unwrap();
+
+        let (skills_dir, skills) =
+            find_installable_skills(&tmp, &[".claude/skills".to_string(), "skills".to_string()])
+                .unwrap();
+
+        fs::remove_dir_all(&tmp).ok();
+        assert_eq!(skills_dir.file_name().unwrap(), "skills");
+        assert_eq!(skills, vec!["my-skill"]);
+    }
 }

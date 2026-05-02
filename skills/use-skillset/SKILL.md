@@ -1,6 +1,6 @@
 ---
 name: use-skillset
-description: Use the Skillset CLI to manage and sync AI agent skills. Use when the user asks to install skills from a repo (e.g. skillset install webteractive/skillset), sync skills to Cursor/Claude/Codex/etc., add or remove skills, list skills, or when working with .skillset/skills or ~/.skillset/skills.
+description: Use the Skillset CLI to manage and sync AI agent skills. Use when the user asks to install skills from a local path or repo (e.g. skillset install ./skills or skillset install webteractive/skillset), sync skills to Cursor/Claude/Codex/etc., add or remove skills, list skills, or when working with .skillset/skills or ~/.skillset/skills.
 ---
 
 # Using Skillset
@@ -11,7 +11,7 @@ Skillset is a CLI that manages AI agent skills and syncs them to tools (Cursor, 
 
 Apply this skill when:
 
-- The user says "skillset install …", "install skills from …", or wants to install skills from a GitHub repo (e.g. `webteractive/skillset`)
+- The user says "skillset install …", "install skills from …", or wants to install skills from a local path or GitHub repo (e.g. `./skills` or `webteractive/skillset`)
 - The user wants to sync skills to Cursor, Claude, Codex, or other configured tools
 - The user asks to add, remove, or list skills, or to use the skillset CLI
 - The context involves `.skillset/skills`, `~/.skillset/skills`, or skill directories for AI tools
@@ -57,12 +57,14 @@ Select targets (e.g. 1,3,5 or 'all') [all]:
 
 For each skill that already exists at a selected target, you'll be prompted: `Skill 'my-skill' already exists at cursor. Overwrite? [y/n/all]`
 
-### `skillset install <owner/repo>`
+### `skillset install <path-or-package>`
 
-Install skills from a GitHub repository into the **source of truth only** (workspace or user store). Does not copy to AI tool dirs; use `skillset sync` or `install --sync` for that.
+Install skills from a local path or GitHub repository into the **source of truth only** (workspace or user store). Local paths may point to a repo root, a skills directory containing skill subdirectories, or a single skill directory containing `SKILL.md`. Does not copy to AI tool dirs; use `skillset sync` or `install --sync` for that.
 
 ```bash
 # Install all skills from a package
+skillset install ../my-skills
+skillset install ~/skills/my-skill
 skillset install webteractive/skillset
 
 # Install a specific skill
@@ -75,7 +77,7 @@ skillset install webteractive/skillset --sync
 skillset install webteractive/skillset --user   # or skillset install webteractive/skillset -G
 ```
 
-Package is cloned to `~/.cache/skillset/repos/owner-repo` (or `~/Library/Caches/skillset/repos/` on macOS). The repo must contain a skills directory at **`.cursor/skills`** or **`skills`** at repo root; each skill is a subdirectory with a `SKILL.md` file.
+Remote packages are cloned to `~/.cache/skillset/repos/owner-repo` (or `~/Library/Caches/skillset/repos/` on macOS). Repos must contain a skills directory at **`.claude/skills`** or **`skills`** at repo root by default; each skill is a subdirectory with a `SKILL.md` file.
 
 ### `skillset add <name>`
 
@@ -139,7 +141,7 @@ Default targets include Cursor, Claude Code, Windsurf, Codex, OpenCode, Gemini, 
 ## Requirements
 
 - **macOS or Linux** (Windows not supported)
-- **git** for `skillset install` (clones packages)
+- **git** for remote `skillset install` packages
 - Binary on PATH (e.g. `~/.local/bin/skillset` or `~/.cargo/bin/skillset`)
 
 ## Paths

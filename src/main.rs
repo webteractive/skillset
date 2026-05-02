@@ -64,9 +64,9 @@ enum Commands {
         #[arg(long)]
         diff: bool,
     },
-    /// Install skills from a vendor/package (e.g., anthropics/skills)
+    /// Install skills from a local path, owner/repo package, or full Git URL
     Install {
-        /// Package spec in owner/repo format or full Git URL
+        /// Package spec as a local path, owner/repo format, or full Git URL
         package: String,
         /// Install only the specified skill
         #[arg(long)]
