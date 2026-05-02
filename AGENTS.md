@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This repository is a Rust CLI named `skillset`. The entry point is `src/main.rs`, which defines the Clap command surface and delegates work to focused modules such as `src/install.rs`, `src/skills.rs`, `src/config.rs`, `src/registry.rs`, and `src/validate.rs`. Bundled skill content lives in `skills/<skill-name>/`, with each skill keeping its `SKILL.md` and optional README together. Release and install helpers are in `release.sh` and `install.sh`; example configuration is in `config.example.json`.
+This repository is a Rust CLI named `skillset`. The entry point is `src/main.rs`, which defines the Clap command surface and delegates work to focused modules such as `src/install.rs`, `src/skills.rs`, `src/config.rs`, `src/registry.rs`, and `src/validate.rs`. Bundled skill content lives in `skills/<skill-name>/`, with each skill keeping its `SKILL.md` and optional README together. Install helpers are in `install.sh`; example configuration is in `config.example.json`.
 
 ## Build, Test, and Development Commands
 
@@ -11,7 +11,7 @@ This repository is a Rust CLI named `skillset`. The entry point is `src/main.rs`
 - `cargo test` runs Rust unit and integration tests when present.
 - `cargo fmt --check` verifies standard Rust formatting; use `cargo fmt` to apply it.
 - `cargo clippy --all-targets --all-features` catches common correctness and maintainability issues.
-- `cargo build --release` builds the optimized release binary used by `release.sh`.
+- `cargo build --release` builds the optimized release binary locally; tagged releases are built by GitHub Actions.
 
 ## Coding Style & Naming Conventions
 

@@ -20,10 +20,9 @@ cargo clippy -- -D warnings    # lint (must pass before release)
 ## Releasing
 
 1. Update version in `Cargo.toml` and update `CHANGELOG.md`
-2. Run `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test`
-3. Run `./release.sh v0.x.x` — builds binary, creates GitHub release via `gh`, uploads platform-specific asset
-4. For additional OS/arch: `./release.sh v0.x.x --upload` on that machine
-5. No CI — releases are manual. Always build and upload the binary asset.
+2. Run `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --locked`
+3. Commit the release changes and tag with `git tag v0.x.x`
+4. Push the commit and tag; GitHub Actions builds Linux/macOS binaries and publishes the GitHub release
 
 ## Architecture
 

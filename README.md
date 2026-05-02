@@ -224,7 +224,7 @@ cargo run -- list
 cargo test
 ```
 
-**Releasing:** Update CHANGELOG, run `cargo fmt` / `cargo clippy -- -D warnings` / `cargo test`, then `./release.sh patch|minor|major` — the script bumps `Cargo.toml`, commits, tags, builds, and creates the GitHub release automatically.
+**Releasing:** Update `Cargo.toml`, `Cargo.lock`, and `CHANGELOG.md`, then run `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, and `cargo test --locked`. Commit the release changes, tag it with `git tag vX.Y.Z`, and push the tag; GitHub Actions builds the release binaries and publishes the GitHub release.
 
 ---
 
