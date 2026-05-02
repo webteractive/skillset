@@ -59,10 +59,13 @@ else
 fi
 
 mkdir -p "$INSTALL_DIR"
-cp "$BINARY" "$INSTALL_DIR/skillset"
-chmod +x "$INSTALL_DIR/skillset"
+TARGET="$INSTALL_DIR/skillset"
+TMP_TARGET="${TARGET}.tmp.$$"
+cp "$BINARY" "$TMP_TARGET"
+chmod +x "$TMP_TARGET"
+mv -f "$TMP_TARGET" "$TARGET"
 
-echo "Installed skillset to $INSTALL_DIR/skillset"
+echo "Installed skillset to $TARGET"
 echo ""
 if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
   echo "Ensure $INSTALL_DIR is on your PATH, e.g. add to ~/.bashrc or ~/.zshrc:"

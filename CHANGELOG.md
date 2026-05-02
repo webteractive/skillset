@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-05-02
+
 ### Fixed
 
 - Release workflow now uses current macOS Intel runner and Node 24-compatible action versions.
+- Installer now replaces the `skillset` binary atomically to avoid self-update verification failures on macOS.
 
 ## [0.2.5] - 2026-05-02
 
@@ -153,7 +156,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - macOS and Linux only. Windows is not supported.
 
-[Unreleased]: https://github.com/webteractive/skillset/compare/v0.2.5...HEAD
+[Unreleased]: https://github.com/webteractive/skillset/compare/v0.2.6...HEAD
+[0.2.6]: https://github.com/webteractive/skillset/releases/tag/v0.2.6
 [0.2.5]: https://github.com/webteractive/skillset/releases/tag/v0.2.5
 [0.2.4]: https://github.com/webteractive/skillset/releases/tag/v0.2.4
 [0.2.3]: https://github.com/webteractive/skillset/releases/tag/v0.2.3
