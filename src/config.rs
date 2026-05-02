@@ -63,7 +63,7 @@ pub fn supported_tools() -> Vec<Target> {
         },
         Target {
             label: "Codex".to_string(),
-            path: "~/.codex/skills".to_string(),
+            path: "~/.agents/skills".to_string(),
         },
         Target {
             label: "OpenCode".to_string(),
@@ -121,6 +121,17 @@ pub fn load() -> Result<Config> {
         save(&config)?;
     }
 
+    let mut migrated = false;
+    for target in &mut config.targets {
+        if target.label == "Codex" && target.path == "~/.codex/skills" {
+            target.path = "~/.agents/skills".to_string();
+            migrated = true;
+        }
+    }
+    if migrated {
+        save(&config)?;
+    }
+
     Ok(config)
 }
 
@@ -169,6 +180,12 @@ mod tests {
         assert!(labels.contains(&"Codex"));
         assert!(labels.contains(&"GitHub Copilot (project)"));
         assert!(labels.contains(&"GitHub Copilot (personal)"));
+
+        let codex = tools
+            .iter()
+            .find(|target| target.label == "Codex")
+            .expect("Codex target should be present");
+        assert_eq!(codex.path, "~/.agents/skills");
     }
 
     #[test]

@@ -8,7 +8,7 @@
     { "label": "Cursor", "path": "~/.cursor/skills" },
     { "label": "Claude Code", "path": "~/.claude/skills" },
     { "label": "Windsurf", "path": "~/.windsurf/skills" },
-    { "label": "Codex", "path": "~/.codex/skills" },
+    { "label": "Codex", "path": "~/.agents/skills" },
     { "label": "OpenCode", "path": "~/.opencode/skills" },
     { "label": "Gemini", "path": "~/.gemini/skills" },
     { "label": "GitHub Copilot (project)", "path": ".github/skills" },
