@@ -1,6 +1,6 @@
 # Skillset
 
-Manage AI agent skills in one place and sync them to Cursor, Claude, Codex, Gemini, OpenCode, and more. The **source of truth** is `.skillset/skills` (project) or `~/.skillset/skills` (user-level).
+Manage AI agent skills in one place and sync them to Cursor, Claude, Hermes, Codex, Gemini, OpenCode, and more. The **source of truth** is `.skillset/skills` (project) or `~/.skillset/skills` (user-level).
 
 **macOS & Linux** · WSL 2 supported
 
@@ -48,7 +48,7 @@ cargo install --path .
 ## How It Works
 
 - **Source:** Skills live in `.skillset/skills` (workspace) or `~/.skillset/skills` (user-level).
-- **Targets:** Config lists where to sync (e.g. `~/.cursor/skills`, `~/.claude/skills`).
+- **Targets:** Config lists where to sync (e.g. `~/.cursor/skills`, `~/.claude/skills`, `~/.hermes/skills`).
 - **Scope:** Use `--user` or `-G` to operate on user-level; otherwise, workspace.
 
 ---

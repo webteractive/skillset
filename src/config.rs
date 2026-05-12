@@ -58,6 +58,10 @@ pub fn supported_tools() -> Vec<Target> {
             path: "~/.claude/skills".to_string(),
         },
         Target {
+            label: "Hermes Agent".to_string(),
+            path: "~/.hermes/skills".to_string(),
+        },
+        Target {
             label: "Windsurf".to_string(),
             path: "~/.windsurf/skills".to_string(),
         },
@@ -125,11 +129,26 @@ pub fn load() -> Result<Config> {
         save(&config)?;
     }
 
-    if ensure_codex_targets(&mut config.targets) {
+    if ensure_default_targets(&mut config.targets) {
         save(&config)?;
     }
 
     Ok(config)
+}
+
+fn ensure_default_targets(targets: &mut Vec<Target>) -> bool {
+    let mut changed = ensure_codex_targets(targets);
+
+    let has_hermes = targets.iter().any(|target| is_hermes_path(&target.path));
+    if !has_hermes {
+        targets.push(Target {
+            label: "Hermes Agent".to_string(),
+            path: "~/.hermes/skills".to_string(),
+        });
+        changed = true;
+    }
+
+    changed
 }
 
 fn ensure_codex_targets(targets: &mut Vec<Target>) -> bool {
@@ -190,6 +209,12 @@ fn is_codex_agents_path(path: &str) -> bool {
         || path.ends_with("\\.agents\\skills")
 }
 
+fn is_hermes_path(path: &str) -> bool {
+    path == "~/.hermes/skills"
+        || path.ends_with("/.hermes/skills")
+        || path.ends_with("\\.hermes\\skills")
+}
+
 pub fn save(config: &Config) -> Result<()> {
     let path = config_path()?;
     let dir = path.parent().unwrap();
@@ -227,10 +252,11 @@ mod tests {
     #[test]
     fn test_supported_tools_returns_all_tools() {
         let tools = supported_tools();
-        assert_eq!(tools.len(), 9, "supported_tools should return 9 tools");
+        assert_eq!(tools.len(), 10, "supported_tools should return 10 tools");
         let labels: Vec<&str> = tools.iter().map(|t| t.label.as_str()).collect();
         assert!(labels.contains(&"Cursor"));
         assert!(labels.contains(&"Claude Code"));
+        assert!(labels.contains(&"Hermes Agent"));
         assert!(labels.contains(&"Gemini"));
         assert!(labels.contains(&"Codex"));
         assert!(labels.contains(&"Codex Home"));
@@ -247,6 +273,11 @@ mod tests {
             .find(|target| target.label == "Codex Home")
             .expect("Codex Home target should be present");
         assert_eq!(codex_home.path, "~/.codex/skills");
+        let hermes = tools
+            .iter()
+            .find(|target| target.label == "Hermes Agent")
+            .expect("Hermes Agent target should be present");
+        assert_eq!(hermes.path, "~/.hermes/skills");
     }
 
     #[test]
@@ -254,7 +285,7 @@ mod tests {
         let tools = supported_tools();
         let user_level: Vec<_> = tools.iter().filter(|t| t.path.starts_with("~/")).collect();
         let workspace_level: Vec<_> = tools.iter().filter(|t| !t.path.starts_with("~/")).collect();
-        assert_eq!(user_level.len(), 8, "8 tools use user-level paths (~/...)");
+        assert_eq!(user_level.len(), 9, "9 tools use user-level paths (~/...)");
         assert_eq!(
             workspace_level.len(),
             1,
@@ -290,6 +321,14 @@ mod tests {
     }
 
     #[test]
+    fn test_hermes_path_detection() {
+        assert!(is_hermes_path("~/.hermes/skills"));
+        assert!(is_hermes_path("/Users/example/.hermes/skills"));
+        assert!(is_hermes_path("C:\\Users\\example\\.hermes\\skills"));
+        assert!(!is_hermes_path("~/.claude/skills"));
+    }
+
+    #[test]
     fn test_ensure_codex_targets_adds_both_locations() {
         let mut targets = vec![Target {
             label: "Cursor".to_string(),
@@ -319,5 +358,34 @@ mod tests {
         assert!(targets
             .iter()
             .any(|target| target.label == "Codex" && target.path == "~/.agents/skills"));
+    }
+
+    #[test]
+    fn test_ensure_default_targets_adds_hermes() {
+        let mut targets = vec![Target {
+            label: "Cursor".to_string(),
+            path: "~/.cursor/skills".to_string(),
+        }];
+
+        assert!(ensure_default_targets(&mut targets));
+        assert!(targets
+            .iter()
+            .any(|target| target.label == "Hermes Agent" && target.path == "~/.hermes/skills"));
+    }
+
+    #[test]
+    fn test_ensure_default_targets_preserves_existing_hermes_path() {
+        let mut targets = vec![Target {
+            label: "Hermes".to_string(),
+            path: "/Users/example/.hermes/skills".to_string(),
+        }];
+
+        ensure_default_targets(&mut targets);
+        let hermes_targets: Vec<_> = targets
+            .iter()
+            .filter(|target| is_hermes_path(&target.path))
+            .collect();
+        assert_eq!(hermes_targets.len(), 1);
+        assert_eq!(hermes_targets[0].label, "Hermes");
     }
 }

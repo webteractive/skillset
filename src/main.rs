@@ -409,7 +409,14 @@ fn select_sync_targets(
         .map(|(label, path)| format!("{}  ({})", label, path.display()))
         .collect();
     // Preselect common interactive targets.
-    const PRESELECTED: &[&str] = &["Cursor", "Claude Code", "Gemini", "Codex", "Codex Home"];
+    const PRESELECTED: &[&str] = &[
+        "Cursor",
+        "Claude Code",
+        "Hermes Agent",
+        "Gemini",
+        "Codex",
+        "Codex Home",
+    ];
     let default_selected: Vec<bool> = targets
         .iter()
         .map(|(label, _)| PRESELECTED.contains(&label.as_str()))

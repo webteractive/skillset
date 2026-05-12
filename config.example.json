@@ -7,6 +7,7 @@
   "targets": [
     { "label": "Cursor", "path": "~/.cursor/skills" },
     { "label": "Claude Code", "path": "~/.claude/skills" },
+    { "label": "Hermes Agent", "path": "~/.hermes/skills" },
     { "label": "Windsurf", "path": "~/.windsurf/skills" },
     { "label": "Codex", "path": "~/.agents/skills" },
     { "label": "Codex Home", "path": "~/.codex/skills" },
