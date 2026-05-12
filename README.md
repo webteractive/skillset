@@ -58,7 +58,7 @@ cargo install --path .
 | Command | Description |
 |---------|-------------|
 | `skillset list` | Show skills and their status per target |
-| `skillset sync` | Copy or symlink skills from source to selected targets |
+| `skillset sync` | Symlink skills from source to selected targets by default |
 | `skillset install <path-or-package>` | Install skills from a local path or GitHub repo |
 | `skillset migrate-to-symlinked` | Convert target skills to symlinks pointing at source |
 | `skillset migrate-to-copy` | Convert target skills back to copied directories |
@@ -71,7 +71,7 @@ cargo install --path .
 | `skillset self-update` | Update skillset to the latest version |
 | `skillset doc --agents-md` | Output AGENTS.md snippet |
 
-**Common flags:** `--user` / `-G` (user-level), `--sync` (with install), `--symlink` (sync/install targets as symlinks), `--force` (skip all prompts), `--dry-run` (preview without changes)
+**Common flags:** `--user` / `-G` (user-level), `--sync` (with install), `--symlink` (default sync mode; retained for compatibility), `--force` (skip all prompts), `--dry-run` (preview without changes)
 
 #### `install`
 
@@ -102,7 +102,6 @@ skillset install https://github.com/org/private-repo.git   # if using credential
 # Create and sync
 skillset add my-skill
 skillset sync
-skillset sync --symlink
 
 # Preview what would happen
 skillset sync --dry-run
@@ -212,9 +211,9 @@ tags: [testing, automation]
 
 ## Incremental Sync
 
-When syncing in copy mode, skillset automatically skips skills whose SKILL.md is identical at the target. In symlink mode, it skips targets that already point at the source skill directory. Use `--force` to skip prompts when a target needs to be rewritten.
+By default, `skillset sync` places directory symlinks in configured targets so target skills stay live-linked to the source of truth. It skips targets that already point at the source skill directory. In copy mode, skillset skips skills whose SKILL.md is identical at the target. Use `--force` to skip prompts when a target needs to be rewritten.
 
-Use `skillset sync --symlink` to place directory symlinks in configured targets instead of copying skill directories. This keeps target skills live-linked to the source of truth. Use `skillset migrate-to-symlinked` to convert existing copied target skills to symlinks, and `skillset migrate-to-copy` to convert symlinks back into real copied directories.
+Use `skillset migrate-to-symlinked` to convert existing copied target skills to symlinks, and `skillset migrate-to-copy` to convert symlinks back into real copied directories.
 
 `skillset remove <name>` only removes skills that exist in the active source (`.skillset/skills` or `~/.skillset/skills`). Target skills are removed only when they point to that source skill or match its `SKILL.md`, so independently installed same-named target skills are left alone.
 

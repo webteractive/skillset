@@ -63,7 +63,7 @@ enum Commands {
         /// Show diff of SKILL.md before overwriting
         #[arg(long)]
         diff: bool,
-        /// Symlink skills into targets instead of copying them
+        /// Symlink skills into targets (default; retained for backward compatibility)
         #[arg(long)]
         symlink: bool,
     },
@@ -91,7 +91,7 @@ enum Commands {
         /// After installing, sync skills from source to configured targets
         #[arg(long)]
         sync: bool,
-        /// With --sync, symlink skills into targets instead of copying them
+        /// With --sync, symlink skills into targets (default; retained for backward compatibility)
         #[arg(long)]
         symlink: bool,
         /// Comma-separated dirs to look for skills in (e.g., .cursor/skills,.claude/skills,skills)
@@ -188,11 +188,7 @@ fn main() -> Result<()> {
             force,
             dry_run,
             diff,
-            if symlink {
-                SyncMethod::Symlink
-            } else {
-                SyncMethod::Copy
-            },
+            sync_method_from_flag(symlink),
         )?,
         Commands::MigrateToSymlinked { diff } => {
             sync_skills_cli(cli.user, force, dry_run, diff, SyncMethod::Symlink)?
@@ -216,11 +212,7 @@ fn main() -> Result<()> {
             dir.as_deref(),
             from_remote,
             dry_run,
-            if symlink {
-                SyncMethod::Symlink
-            } else {
-                SyncMethod::Copy
-            },
+            sync_method_from_flag(symlink),
         )?,
         Commands::Add {
             name,
@@ -422,15 +414,16 @@ fn select_sync_targets(
         .map(|(label, _)| PRESELECTED.contains(&label.as_str()))
         .collect();
 
-    let selected_indices =
-        dialoguer::MultiSelect::with_theme(&dialoguer::theme::ColorfulTheme::default())
-            .with_prompt(
-                "Supported tools that will receive the copy (Space to toggle, Enter to confirm)",
-            )
-            .items(&items)
-            .defaults(&default_selected)
-            .interact_opt()
-            .context("Failed to show selection")?;
+    let selected_indices = dialoguer::MultiSelect::with_theme(
+        &dialoguer::theme::ColorfulTheme::default(),
+    )
+    .with_prompt(
+        "Supported tools that will receive synced skills (Space to toggle, Enter to confirm)",
+    )
+    .items(&items)
+    .defaults(&default_selected)
+    .interact_opt()
+    .context("Failed to show selection")?;
 
     let selected = match selected_indices {
         None => {
@@ -487,6 +480,14 @@ fn target_path_for_scope(
     } else {
         cwd.join(path)
     }
+}
+
+fn default_sync_method() -> SyncMethod {
+    SyncMethod::Symlink
+}
+
+fn sync_method_from_flag(_symlink: bool) -> SyncMethod {
+    default_sync_method()
 }
 
 fn sync_skills_cli(
@@ -625,11 +626,11 @@ fn install_package(
     if !do_sync {
         if user_scope {
             println!(
-                "\nNext: run `skillset sync --user` (or `skillset sync -G`) to copy skills to your configured tools."
+                "\nNext: run `skillset sync --user` (or `skillset sync -G`) to sync skills to your configured tools."
             );
         } else {
             println!(
-                "\nNext: run `skillset sync` to copy skills to your configured tools (Cursor, Claude Code, etc.)."
+                "\nNext: run `skillset sync` to sync skills to your configured tools (Cursor, Claude Code, etc.)."
             );
         }
     }
@@ -916,4 +917,16 @@ fn doc_output(agents_md: bool) -> Result<()> {
         println!("Use --agents-md to output the AGENTS.md snippet.");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_sync_method_is_symlink() {
+        assert!(matches!(default_sync_method(), SyncMethod::Symlink));
+        assert!(matches!(sync_method_from_flag(false), SyncMethod::Symlink));
+        assert!(matches!(sync_method_from_flag(true), SyncMethod::Symlink));
+    }
 }
