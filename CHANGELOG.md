@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-05-12
+
+### Changed
+
+- `sync` and `install --sync` now symlink skills into configured targets by default; `--symlink` remains available for backward compatibility.
+
 ## [0.2.9] - 2026-05-12
 
 ### Added
